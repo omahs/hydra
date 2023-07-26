@@ -12,7 +12,9 @@
 let
   inherit (hydraProject) compiler pkgs hsPkgs;
 
-  cardano-node-pkgs = cardano-node.packages.${system};
+  cardano-node-pkgs = 
+    (if system != "aarch64-darwin" then cardano-node.packages.${system} else {});
+    
 
   cabal = pkgs.haskell-nix.cabal-install.${compiler};
 
@@ -45,6 +47,7 @@ let
     pkgs.plantuml
     # For plotting results of hydra-cluster benchmarks
     pkgs.gnuplot
+  ] ++ pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     # For integration tests
     cardano-node-pkgs.cardano-node
   ];
@@ -66,6 +69,7 @@ let
     # For docs/ (i.e. Docusaurus, Node.js & React)
     pkgs.yarn
     pkgs.nodejs
+  ] ++ pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     # To interact with cardano-node and testing out things
     cardano-node-pkgs.cardano-cli
   ];
@@ -98,6 +102,15 @@ let
     LANG = "en_US.UTF-8";
 
     GIT_SSL_CAINFO = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+
+    shellHook = ''
+      if [ ! which cardano-node ]; then
+        echo "WARNING: 'cardano-node' not found"
+      fi
+      if [ ! which cardano-cli ]; then
+        echo "WARNING: 'cardano-cli' not found"
+      fi
+    '';
   };
 
   # A "cabal-only" shell which does not use haskell.nix
@@ -128,10 +141,11 @@ let
     name = "hydra-node-exe-shell";
 
     buildInputs = [
-      cardano-node-pkgs.cardano-node
-      cardano-node-pkgs.cardano-cli
       hsPkgs.hydra-node.components.exes.hydra-node
       hsPkgs.hydra-cluster.components.exes.hydra-cluster
+    ] ++ pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
+      cardano-node-pkgs.cardano-node
+      cardano-node-pkgs.cardano-cli
     ];
   };
 
@@ -139,11 +153,12 @@ let
   demoShell = pkgs.mkShell {
     name = "hydra-demo-shell";
     buildInputs = [
-      cardano-node-pkgs.cardano-node
-      cardano-node-pkgs.cardano-cli
       hsPkgs.hydra-node.components.exes.hydra-node
       hsPkgs.hydra-tui.components.exes.hydra-tui
       run-tmux
+    ] ++ pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
+      cardano-node-pkgs.cardano-node
+      cardano-node-pkgs.cardano-cli
     ];
   };
 
