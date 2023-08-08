@@ -80,6 +80,7 @@ let
       plutus-cbor
       plutus-merkle-tree
       hydra-plutus
+      hydra-fixtures
       hydra-node
       hydra-cluster
       hydra-tui

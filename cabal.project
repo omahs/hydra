@@ -19,6 +19,7 @@ index-state:
 packages:
   hydra-prelude
   hydra-cardano-api
+  hydra-fixtures
   hydra-test-utils
   plutus-cbor
   plutus-merkle-tree

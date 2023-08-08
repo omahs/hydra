@@ -1,0 +1,109 @@
+cabal-version: 3.0
+name:          hydra-fixtures
+version:       0.12.0
+synopsis:      Fixtures and testing utilities
+author:        IOG
+copyright:     2022 IOG
+license:       Apache-2.0
+license-files:
+  LICENSE
+  NOTICE
+
+source-repository head
+  type:     git
+  location: https://github.com/input-output-hk/hydra
+
+flag hydra-development
+  description: Disable -Werror for development
+  default:     False
+  manual:      True
+
+common project-config
+  default-extensions:
+    NoImplicitPrelude
+    BangPatterns
+    BinaryLiterals
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveTraversable
+    DerivingStrategies
+    EmptyDataDecls
+    ExistentialQuantification
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedStrings
+    PartialTypeSignatures
+    PatternGuards
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeFamilies
+    TypeOperators
+    TypeSynonymInstances
+    ViewPatterns
+
+  ghc-options:
+    -Wall -Wcompat -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints
+    -Wnoncanonical-monad-instances -fobject-code
+    -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+    -fno-strictness
+
+  if !flag(hydra-development)
+    ghc-options: -Werror
+
+library
+  import:          project-config
+  exposed-modules:
+    Hydra.Fixtures
+    Hydra.Fixtures.Evaluate
+    Hydra.Fixtures.ProtocolParameters
+    Hydra.Fixtures.Time
+    Hydra.Plutus.Time
+
+  hs-source-dirs:  src
+  build-depends:
+    , array
+    , base
+    , bytestring
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-alonzo
+    , cardano-ledger-babbage
+    , cardano-ledger-core
+    , cardano-ledger-shelley
+    , cardano-slotting
+    , cardano-strict-containers
+    , containers
+    , contra-tracer
+    , data-default
+    , flat
+    , hydra-cardano-api
+    , hydra-prelude
+    , ouroboros-consensus
+    , ouroboros-consensus-cardano
+    , plutus-core
+    , plutus-ledger-api:{plutus-ledger-api, plutus-ledger-api-testlib}  >=1.1.1.0
+    , QuickCheck
+    , time
+
+  if flag(hydra-development)
+    -- NOTE(SN): should fix HLS choking on PlutusTx plugin
+    ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
