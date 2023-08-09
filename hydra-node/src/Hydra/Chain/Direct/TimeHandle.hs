@@ -5,24 +5,48 @@ module Hydra.Chain.Direct.TimeHandle where
 
 import Hydra.Prelude
 
-import Cardano.Slotting.Slot (SlotNo (SlotNo))
-import Cardano.Slotting.Time (SystemStart (SystemStart), fromRelativeTime, toRelativeTime)
+import Cardano.Slotting.Slot (EpochSize (..), SlotNo (SlotNo))
+import Cardano.Slotting.Time (
+  RelativeTime (..),
+  SystemStart (SystemStart),
+  fromRelativeTime,
+  mkSlotLength,
+  toRelativeTime,
+ )
 import Data.Time (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Hydra.Cardano.Api (
   CardanoMode,
+  ChainPoint (..),
+  ConsensusMode (CardanoMode),
+  EpochNo (..),
   EraHistory (EraHistory),
   NetworkId,
+  StandardCrypto,
  )
-import Hydra.Cardano.Api.Prelude (ChainPoint (ChainPoint, ChainPointAtGenesis))
 import Hydra.Chain.CardanoClient (
   QueryPoint (QueryTip),
   queryEraHistory,
   querySystemStart,
   queryTip,
  )
-import qualified Hydra.Fixtures as Fixtures
-import Ouroboros.Consensus.HardFork.History.Qry (interpretQuery, slotToWallclock, wallclockToSlot)
+import Ouroboros.Consensus.Cardano.Block (CardanoEras)
+import Ouroboros.Consensus.HardFork.History (
+  Bound (..),
+  EraEnd (..),
+  EraParams (..),
+  EraSummary (..),
+  SafeZone (UnsafeIndefiniteSafeZone),
+  Summary (Summary),
+  initBound,
+  mkInterpreter,
+ )
+import Ouroboros.Consensus.HardFork.History.Qry (
+  interpretQuery,
+  slotToWallclock,
+  wallclockToSlot,
+ )
+import Ouroboros.Consensus.Util.Counting (NonEmpty (NonEmptyOne))
 import Test.QuickCheck (getPositive)
 
 type PointInTime = (SlotNo, UTCTime)
@@ -65,9 +89,46 @@ genTimeParams = do
   pure $
     TimeHandleParams
       { systemStart = SystemStart startTime
-      , eraHistory = Fixtures.eraHistoryWithHorizonAt horizonSlot
+      , eraHistory = eraHistoryWithHorizonAt horizonSlot
       , horizonSlot = horizonSlot
       , currentSlot = currentSlotNo
+      }
+
+-- | An era history with a single era which will end at some point.
+--
+-- A "real" 'EraHistory' received from the cardano-node will have the 'eraEnd'
+-- at a known or earliest possible end of the current era + a safe zone.
+--
+-- See 'Ouroboros.Consensus.HardFork.History.EraParams' for details.
+--
+-- NOTE: This era is using not so realistic epoch sizes of 1 and sets a slot
+-- length of 1
+eraHistoryWithHorizonAt :: SlotNo -> EraHistory CardanoMode
+eraHistoryWithHorizonAt slotNo@(SlotNo n) =
+  EraHistory CardanoMode (mkInterpreter summary)
+ where
+  summary :: Summary (CardanoEras StandardCrypto)
+  summary =
+    Summary . NonEmptyOne $
+      EraSummary
+        { eraStart = initBound
+        , eraEnd =
+            EraEnd $
+              Bound
+                { boundTime = RelativeTime $ fromIntegral n
+                , boundSlot = slotNo
+                , boundEpoch = EpochNo n
+                }
+        , eraParams
+        }
+
+  eraParams =
+    EraParams
+      { eraEpochSize = EpochSize 1
+      , eraSlotLength = mkSlotLength 1
+      , -- NOTE: unused if the 'eraEnd' is already defined, but would be used to
+        -- extend the last era accordingly in the real cardano-node
+        eraSafeZone = UnsafeIndefiniteSafeZone
       }
 
 -- | Construct a time handle using current slot and given chain parameters. See
