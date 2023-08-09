@@ -74,15 +74,6 @@ import Options.Applicative.Help (vsep)
 import Paths_hydra_node (version)
 import Test.QuickCheck (elements, listOf, listOf1, oneof, suchThat, vectorOf)
 
-data ParamMismatch
-  = ContestationPeriodMismatch {loadedCp :: ContestationPeriod, configuredCp :: ContestationPeriod}
-  | PartiesMismatch {loadedParties :: [Party], configuredParties :: [Party]}
-  deriving stock (Generic, Eq, Show)
-  deriving anyclass (ToJSON, FromJSON)
-
-instance Arbitrary ParamMismatch where
-  arbitrary = genericArbitrary
-
 data Command
   = Run RunOptions
   | Publish PublishOptions
