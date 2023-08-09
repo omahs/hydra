@@ -151,8 +151,8 @@ import qualified Hydra.Contract.Head as Head
 import qualified Hydra.Contract.HeadState as Head
 import Hydra.Data.ContestationPeriod
 import qualified Hydra.Data.Party as Data (Party)
+import Hydra.Fixtures.Evaluate (evaluateTx)
 import Hydra.Ledger.Cardano (genKeyPair, genOutput, genVerificationKey)
-import Hydra.Ledger.Cardano.Evaluate (evaluateTx)
 import Hydra.Party (Party)
 import Hydra.Prelude hiding (label)
 import Plutus.Orphans ()

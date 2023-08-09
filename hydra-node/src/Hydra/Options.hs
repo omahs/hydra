@@ -34,7 +34,6 @@ import qualified Hydra.Contract as Contract
 import Hydra.Ledger.Cardano ()
 import Hydra.Logging (Verbosity (..))
 import Hydra.Network (Host, NodeId (NodeId), PortNumber, readHost, readPort)
-import Hydra.Party (Party)
 import Hydra.Version (embeddedRevision, gitRevision, unknownVersion)
 import Options.Applicative (
   Parser,

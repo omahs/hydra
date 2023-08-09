@@ -101,15 +101,15 @@ import Hydra.Chain.Direct.Tx (
   observeFanoutTx,
   observeInitTx,
  )
-import Hydra.ContestationPeriod (ContestationPeriod)
+import Hydra.ContestationPeriod (ContestationPeriod (..))
 import Hydra.Contract.HeadTokens (mkHeadTokenScript)
 import Hydra.Crypto (HydraKey)
-import Hydra.Data.ContestationPeriod (posixToUTCTime)
+import qualified Hydra.Fixtures as Fixtures
 import Hydra.Ledger (ChainSlot (ChainSlot), IsTx (hashUTxO))
 import Hydra.Ledger.Cardano (genOneUTxOFor, genUTxOAdaOnlyOfSize, genVerificationKey)
-import Hydra.Ledger.Cardano.Evaluate (genPointInTimeBefore, genValidityBoundsFromContestationPeriod, slotNoFromUTCTime)
 import Hydra.Ledger.Cardano.Json ()
 import Hydra.Party (Party, deriveParty)
+import Hydra.Plutus.Time (posixToUTCTime)
 import Hydra.Snapshot (
   ConfirmedSnapshot (..),
   Snapshot (..),
@@ -118,7 +118,7 @@ import Hydra.Snapshot (
   getSnapshot,
  )
 import Test.QuickCheck (choose, frequency, oneof, sized, vector)
-import Test.QuickCheck.Gen (elements)
+import Test.QuickCheck.Gen (chooseWord64, elements)
 import Test.QuickCheck.Modifiers (Positive (Positive))
 
 -- | A class for accessing the known 'UTxO' set in a type. This is useful to get
@@ -957,7 +957,7 @@ genContestTx = do
   let stClosed = snd $ fromJust $ observeClose stOpen txClose
   utxo <- arbitrary
   contestSnapshot <- genConfirmedSnapshot (succ $ number $ getSnapshot confirmed) utxo (ctxHydraSigningKeys ctx)
-  contestPointInTime <- genPointInTimeBefore (getContestationDeadline stClosed)
+  contestPointInTime <- Fixtures.genPointInTimeBefore (getContestationDeadline stClosed)
   pure (ctx, closePointInTime, stClosed, contest cctx stClosed contestSnapshot contestPointInTime)
 
 genFanoutTx :: Int -> Int -> Gen (HydraContext, ClosedState, Tx)
@@ -966,13 +966,25 @@ genFanoutTx numParties numOutputs = do
   utxo <- genUTxOAdaOnlyOfSize numOutputs
   (_, toFanout, stClosed) <- genStClosed ctx utxo
   cctx <- pickChainContext ctx
-  let deadlineSlotNo = slotNoFromUTCTime (getContestationDeadline stClosed)
+  let deadlineSlotNo = Fixtures.slotNoFromUTCTime (getContestationDeadline stClosed)
   pure (ctx, stClosed, fanout cctx stClosed toFanout deadlineSlotNo)
 
 getContestationDeadline :: ClosedState -> UTCTime
 getContestationDeadline
   ClosedState{closedThreadOutput = ClosedThreadOutput{closedContestationDeadline}} =
     posixToUTCTime closedContestationDeadline
+
+-- | Parameter here is the contestation period (cp) so we need to generate
+-- start (tMin) and end (tMax) tx validity bound such that their difference
+-- is not higher than the cp.
+-- Returned slots are tx validity bounds
+genValidityBoundsFromContestationPeriod :: ContestationPeriod -> Gen (SlotNo, (SlotNo, UTCTime))
+genValidityBoundsFromContestationPeriod (UnsafeContestationPeriod cpSeconds) = do
+  startSlot@(SlotNo start) <- SlotNo <$> arbitrary
+  let end = start + fromIntegral cpSeconds
+  endSlot <- SlotNo <$> chooseWord64 (start, end)
+  let time = Fixtures.slotNoToUTCTime endSlot
+  pure (startSlot, (endSlot, time))
 
 genStOpen ::
   HydraContext ->

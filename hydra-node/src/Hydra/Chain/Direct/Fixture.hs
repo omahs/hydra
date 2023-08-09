@@ -1,13 +1,9 @@
-{-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- | Generic Cardano constants for use in testing.
 module Hydra.Chain.Direct.Fixture (
   module Hydra.Chain.Direct.Fixture,
-  pparams,
-  systemStart,
-  epochInfo,
+  Fixtures.pparams,
+  Fixtures.systemStart,
+  Fixtures.epochInfo,
 ) where
 
 import Hydra.Prelude
@@ -26,9 +22,9 @@ import Hydra.Cardano.Api (
   TxIn,
  )
 import Hydra.Contract.HeadTokens (headPolicyId)
+import qualified Hydra.Fixtures as Fixtures
 import Hydra.Ledger.Cardano ()
 import Hydra.Ledger.Cardano.Configuration (newLedgerEnv)
-import Hydra.Ledger.Cardano.Evaluate (epochInfo, pparams, systemStart)
 import Test.Cardano.Ledger.Alonzo.Serialisation.Generators ()
 
 -- * Cardano tx utilities
@@ -50,7 +46,7 @@ defaultLedgerEnv =
 
 defaultPParams :: ProtocolParameters
 defaultPParams =
-  pparams
+  Fixtures.pparams
     { protocolParamPrices = Just $ ExecutionUnitPrices 0 0
     , protocolParamTxFeePerByte = 0
     , protocolParamTxFeeFixed = 0
@@ -59,7 +55,7 @@ defaultPParams =
 defaultGlobals :: Ledger.Globals
 defaultGlobals =
   Ledger.Globals
-    { Ledger.epochInfo = epochInfo
+    { Ledger.epochInfo = Fixtures.epochInfo
     , Ledger.slotsPerKESPeriod = 20
     , Ledger.stabilityWindow = 33
     , Ledger.randomnessStabilisationWindow = 33

@@ -7,7 +7,7 @@ import Cardano.Ledger.Slot (SlotNo (SlotNo))
 import Cardano.Slotting.Time (SystemStart (SystemStart))
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Hydra.Chain.Direct.TimeHandle (TimeHandle (..), mkTimeHandle)
-import Hydra.Ledger.Cardano.Evaluate (eraHistoryWithHorizonAt)
+import Hydra.Fixtures.Time (eraHistoryWithHorizonAt)
 import Test.QuickCheck (counterexample, forAllBlind, property, (===))
 
 spec :: Spec

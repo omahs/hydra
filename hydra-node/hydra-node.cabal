@@ -105,7 +105,6 @@ library
     Hydra.Ledger.Cardano
     Hydra.Ledger.Cardano.Builder
     Hydra.Ledger.Cardano.Configuration
-    Hydra.Ledger.Cardano.Evaluate
     Hydra.Ledger.Cardano.Json
     Hydra.Ledger.Simple
     Hydra.Logging
@@ -152,13 +151,13 @@ library
     , data-default
     , directory
     , filepath
-    , flat
     , formatting
     , http-types
     , hydra-cardano-api
+    , hydra-fixtures
     , hydra-plutus
     , hydra-prelude
-    , io-classes                                                        >=0.3.0.0
+    , io-classes                   >=0.3.0.0
     , iohk-monitoring
     , iproute
     , lens
@@ -169,11 +168,11 @@ library
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
-    , ouroboros-network-api                                             >=0.1.0.0
-    , ouroboros-network-framework                                       >=0.3.0.0
-    , ouroboros-network-protocols                                       >=0.3.0.0
+    , ouroboros-network-api        >=0.1.0.0
+    , ouroboros-network-framework  >=0.3.0.0
+    , ouroboros-network-protocols  >=0.3.0.0
     , plutus-core
-    , plutus-ledger-api:{plutus-ledger-api, plutus-ledger-api-testlib}  >=1.1.1.0
+    , plutus-ledger-api            >=1.1.1.0
     , prometheus
     , QuickCheck
     , quickcheck-instances
@@ -182,15 +181,13 @@ library
     , text
     , time
     , transformers
-    , typed-protocols                                                   >=0.1.0.0
-    , typed-protocols-cborg                                             >=0.1.0.0
+    , typed-protocols              >=0.1.0.0
+    , typed-protocols-cborg        >=0.1.0.0
     , unliftio
     , wai
     , wai-websockets
     , warp
     , websockets
-
-  ghc-options:     -haddock
 
 executable hydra-node
   import:         project-config
@@ -223,14 +220,15 @@ executable hydra-net
   main-is:        Main.hs
   other-modules:  Log
   build-depends:
-      aeson
+    , aeson
     , contra-tracer
     , hydra-cardano-api
-    , network
     , hydra-node
     , hydra-prelude
+    , network
     , optparse-applicative
-    , ouroboros-network-framework                                       >=0.3.0.0
+    , ouroboros-network-framework  >=0.3.0.0
+
   ghc-options:    -threaded -rtsopts
 
 benchmark tx-cost
@@ -246,6 +244,7 @@ benchmark tx-cost
     , directory
     , filepath
     , hydra-cardano-api
+    , hydra-fixtures
     , hydra-node
     , hydra-plutus
     , hydra-prelude
@@ -357,6 +356,7 @@ test-suite tests
     , hspec-wai
     , HUnit
     , hydra-cardano-api
+    , hydra-fixtures
     , hydra-node
     , hydra-plutus
     , hydra-prelude

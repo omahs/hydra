@@ -21,7 +21,7 @@ import Hydra.Chain.CardanoClient (
   querySystemStart,
   queryTip,
  )
-import Hydra.Ledger.Cardano.Evaluate (eraHistoryWithHorizonAt)
+import qualified Hydra.Fixtures as Fixtures
 import Ouroboros.Consensus.HardFork.History.Qry (interpretQuery, slotToWallclock, wallclockToSlot)
 import Test.QuickCheck (getPositive)
 
@@ -37,6 +37,11 @@ data TimeHandle = TimeHandle
   -- ^ Convert a slot number to a 'UTCTime' using the stored epoch info. This
   -- will fail if the slot is outside the "safe zone".
   }
+
+instance Arbitrary TimeHandle where
+  arbitrary = do
+    TimeHandleParams{systemStart, eraHistory, currentSlot} <- genTimeParams
+    pure $ mkTimeHandle currentSlot systemStart eraHistory
 
 data TimeHandleParams = TimeHandleParams
   { systemStart :: SystemStart
@@ -60,15 +65,10 @@ genTimeParams = do
   pure $
     TimeHandleParams
       { systemStart = SystemStart startTime
-      , eraHistory = eraHistoryWithHorizonAt horizonSlot
+      , eraHistory = Fixtures.eraHistoryWithHorizonAt horizonSlot
       , horizonSlot = horizonSlot
       , currentSlot = currentSlotNo
       }
-
-instance Arbitrary TimeHandle where
-  arbitrary = do
-    TimeHandleParams{systemStart, eraHistory, currentSlot} <- genTimeParams
-    pure $ mkTimeHandle currentSlot systemStart eraHistory
 
 -- | Construct a time handle using current slot and given chain parameters. See
 -- 'queryTimeHandle' to create one by querying a cardano-node.

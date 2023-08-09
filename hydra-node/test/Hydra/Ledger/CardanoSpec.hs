@@ -15,6 +15,7 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.Text (unpack)
 import Hydra.Cardano.Api.Pretty (renderTx)
 import Hydra.Chain.Direct.Fixture (defaultGlobals, defaultLedgerEnv)
+import Hydra.Fixtures.Time (slotNoFromUTCTime, slotNoToUTCTime)
 import Hydra.Ledger (ChainSlot (ChainSlot), applyTransactions)
 import Hydra.Ledger.Cardano (
   cardanoLedger,
@@ -25,7 +26,6 @@ import Hydra.Ledger.Cardano (
   genUTxOAlonzo,
   genUTxOFor,
  )
-import Hydra.Ledger.Cardano.Evaluate (slotNoFromUTCTime, slotNoToUTCTime)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Cardano.Ledger.MaryEraGen ()
 import Test.QuickCheck (Property, checkCoverage, conjoin, counterexample, cover, forAll, forAllBlind, property, sized, vectorOf, (.&&.), (===))

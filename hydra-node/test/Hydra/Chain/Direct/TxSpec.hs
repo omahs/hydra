@@ -15,7 +15,6 @@ import Test.Hydra.Prelude
 import qualified Cardano.Api.UTxO as UTxO
 import Cardano.Ledger.Babbage.PParams (BabbagePParams)
 import qualified Data.Map as Map
-import qualified Data.Text as T
 import GHC.Natural (wordToNatural)
 import Hydra.Cardano.Api.Pretty (renderTx)
 import Hydra.Chain (HeadParameters (..))
@@ -35,10 +34,9 @@ import qualified Hydra.Contract.Commit as Commit
 import Hydra.Contract.HeadTokens (mkHeadTokenScript)
 import qualified Hydra.Contract.Initial as Initial
 import Hydra.Ledger.Cardano (adaOnly, genOneUTxOFor, genVerificationKey)
-import Hydra.Ledger.Cardano.Evaluate (EvaluationReport, maxTxExecutionUnits)
 import Hydra.Party (Party)
 import Test.Cardano.Ledger.Alonzo.Serialisation.Generators ()
-import Test.QuickCheck (Property, choose, counterexample, elements, forAll, getPositive, label, property, vectorOf, withMaxSuccess)
+import Test.QuickCheck (choose, counterexample, elements, forAll, getPositive, label, property, vectorOf, withMaxSuccess)
 import Test.QuickCheck.Instances.Semigroup ()
 
 spec :: Spec
@@ -138,30 +136,6 @@ spec =
 ledgerPParams :: BabbagePParams LedgerEra
 ledgerPParams = toLedgerPParams (shelleyBasedEra @Era) pparams
 
-withinTxExecutionBudget :: EvaluationReport -> Property
-withinTxExecutionBudget report =
-  ( totalMem <= maxMem
-      && totalCpu <= maxCpu
-  )
-    & counterexample
-      ( "Ex. Cost Limits exceeded, mem: "
-          <> show totalMem
-          <> "/"
-          <> show maxMem
-          <> ", cpu: "
-          <> show totalCpu
-          <> "/"
-          <> show maxCpu
-      )
- where
-  budgets = rights $ Map.elems report
-  totalMem = sum $ executionMemory <$> budgets
-  totalCpu = sum $ executionSteps <$> budgets
-  ExecutionUnits
-    { executionMemory = maxMem
-    , executionSteps = maxCpu
-    } = maxTxExecutionUnits
-
 -- | Generate a UTXO representing /commit/ outputs for a given list of `Party`.
 -- NOTE: Uses 'testPolicyId' for the datum.
 -- NOTE: We don't generate empty commits and it is used only at one place so perhaps move it?
@@ -202,15 +176,6 @@ generateCommitUTxOs parties = do
     commitScript = fromPlutusScript Commit.validatorScript
 
     commitDatum = mkCommitDatum party utxo (toPlutusCurrencySymbol testPolicyId)
-
-prettyEvaluationReport :: EvaluationReport -> String
-prettyEvaluationReport (Map.toList -> xs) =
-  "Script Evaluation(s):\n" <> intercalate "\n" (prettyKeyValue <$> xs)
- where
-  prettyKeyValue (ptr, result) =
-    toString ("  - " <> show ptr <> ": " <> prettyResult result)
-  prettyResult =
-    either (T.replace "\n" " " . show) show
 
 -- NOTE: Uses 'testPolicyId' for the datum.
 genAbortableOutputs :: [Party] -> Gen ([UTxOWithScript], [(TxIn, TxOut CtxUTxO, HashableScriptData, UTxO)])

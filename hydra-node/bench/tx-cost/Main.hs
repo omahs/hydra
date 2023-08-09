@@ -4,7 +4,7 @@ import Data.ByteString (hPut)
 import Data.Fixed (Centi)
 import Hydra.Cardano.Api (Lovelace (Lovelace), serialiseToRawBytesHexText)
 import Hydra.Contract (ScriptInfo (..), scriptInfo)
-import Hydra.Ledger.Cardano.Evaluate (maxCpu, maxMem, maxTxSize)
+import Hydra.Fixtures (maxCpu, maxMem, maxTxSize)
 import Options.Applicative (
   Parser,
   ParserInfo,

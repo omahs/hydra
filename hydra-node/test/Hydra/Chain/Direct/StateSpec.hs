@@ -67,6 +67,7 @@ import Hydra.Chain.Direct.State (
   genHydraContext,
   genInitTx,
   genStInitial,
+  genValidityBoundsFromContestationPeriod,
   getContestationDeadline,
   getKnownUTxO,
   initialize,
@@ -82,6 +83,7 @@ import Hydra.Chain.Direct.State (
  )
 import Hydra.Chain.Direct.Tx (ClosedThreadOutput (closedContesters), NotAnInitReason (..))
 import Hydra.ContestationPeriod (toNominalDiffTime)
+import Hydra.Fixtures (evaluateTx, maxTxSize, slotNoFromUTCTime)
 import Hydra.Ledger.Cardano (
   genOutput,
   genTxOut,
@@ -91,12 +93,6 @@ import Hydra.Ledger.Cardano (
   genUTxO1,
   genUTxOSized,
  )
-import Hydra.Ledger.Cardano.Evaluate (
-  evaluateTx,
-  genValidityBoundsFromContestationPeriod,
-  maxTxSize,
- )
-import qualified Hydra.Ledger.Cardano.Evaluate as Fixture
 import Hydra.Snapshot (ConfirmedSnapshot (InitialSnapshot, initialUTxO))
 import qualified PlutusLedgerApi.Test.Examples as Plutus
 import qualified PlutusLedgerApi.V2 as Plutus
@@ -326,7 +322,7 @@ prop_canCloseFanoutEveryCollect = monadicST $ do
     Just (OnCloseTx{contestationDeadline}, st) -> pure (contestationDeadline, st)
     _ -> fail "not observed close"
   -- Fanout
-  let txFanout = fanout cctx stClosed initialUTxO (Fixture.slotNoFromUTCTime deadline)
+  let txFanout = fanout cctx stClosed initialUTxO (slotNoFromUTCTime deadline)
 
   -- Properties
   let collectFails =

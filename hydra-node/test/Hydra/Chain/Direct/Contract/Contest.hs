@@ -37,14 +37,14 @@ import qualified Hydra.Contract.HeadState as Head
 import Hydra.Contract.HeadTokens (headPolicyId)
 import Hydra.Contract.Util (UtilError (MintingOrBurningIsForbidden))
 import Hydra.Crypto (HydraKey, MultiSignature, aggregate, sign, toPlutusSignatures)
-import Hydra.Data.ContestationPeriod (posixFromUTCTime)
 import qualified Hydra.Data.ContestationPeriod as OnChain
 import Hydra.Data.Party (partyFromVerificationKeyBytes)
 import qualified Hydra.Data.Party as OnChain
+import Hydra.Fixtures.Time (slotNoToUTCTime)
 import Hydra.Ledger (hashUTxO)
 import Hydra.Ledger.Cardano (genAddressInEra, genOneUTxOFor, genValue, genVerificationKey)
-import Hydra.Ledger.Cardano.Evaluate (slotNoToUTCTime)
 import Hydra.Party (Party, deriveParty, partyToChain)
+import Hydra.Plutus.Time (posixFromUTCTime)
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber)
 import Plutus.Orphans ()
 import PlutusLedgerApi.V2 (BuiltinByteString, toBuiltin)

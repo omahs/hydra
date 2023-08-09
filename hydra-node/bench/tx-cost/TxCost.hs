@@ -32,6 +32,7 @@ import Hydra.Chain.Direct.State (
   genStClosed,
   genStInitial,
   genStOpen,
+  genValidityBoundsFromContestationPeriod,
   getContestationDeadline,
   getKnownUTxO,
   initialize,
@@ -39,18 +40,17 @@ import Hydra.Chain.Direct.State (
   pickChainContext,
   unsafeObserveInitAndCommits,
  )
-import Hydra.Ledger.Cardano (
-  genOutput,
-  genUTxOAdaOnlyOfSize,
- )
-import Hydra.Ledger.Cardano.Evaluate (
+import Hydra.Fixtures (
   estimateMinFee,
   evaluateTx,
   genPointInTimeBefore,
-  genValidityBoundsFromContestationPeriod,
   maxTxSize,
   slotNoFromUTCTime,
   usedExecutionUnits,
+ )
+import Hydra.Ledger.Cardano (
+  genOutput,
+  genUTxOAdaOnlyOfSize,
  )
 import Hydra.Snapshot (genConfirmedSnapshot)
 import Plutus.Orphans ()

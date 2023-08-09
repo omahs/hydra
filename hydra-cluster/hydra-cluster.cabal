@@ -233,6 +233,7 @@ test-suite tests
     , hspec-golden-aeson
     , hydra-cardano-api
     , hydra-cluster
+    , hydra-fixtures
     , hydra-node
     , hydra-plutus
     , hydra-prelude
