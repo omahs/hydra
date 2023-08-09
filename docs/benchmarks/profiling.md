@@ -63,7 +63,7 @@ to the corresponding modules [`Hydra.Contract.Commit`](/haddock/hydra-plutus/Hyd
 ## Acquiring an executable script
 
 This can be now achieved using
-[`prepareTxScripts`](/haddock/hydra-node/Hydra-Ledger-Cardano-Evaluate.html#v:prepareTxScripts).
+[`prepareTxScripts`](/haddock/hydra-fixtures/Hydra-Fixtures-Evaluate.html#v:prepareTxScripts).
 We can use this function to acquire and dump the fully applied scripts from the
 transaction onto disk.
 

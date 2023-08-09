@@ -97,9 +97,10 @@ rec {
     };
     hydra-node = pkgs.mkShellNoCC {
       name = "hydra-node-tests";
-      buildInputs = [ nativePkgs.hydra-node.components.tests.tests
-                      pkgs.check-jsonschema
-                    ];
+      buildInputs = [
+        nativePkgs.hydra-node.components.tests.tests
+        pkgs.check-jsonschema
+      ];
     };
     hydra-cluster = pkgs.mkShellNoCC {
       name = "hydra-cluster-tests";
@@ -150,6 +151,7 @@ rec {
         hydraProject.hsPkgs.plutus-cbor.components.library.doc
         hydraProject.hsPkgs.plutus-merkle-tree.components.library.doc
         hydraProject.hsPkgs.hydra-prelude.components.library.doc
+        hydraProject.hsPkgs.hydra-fixtures.components.library.doc
         hydraProject.hsPkgs.hydra-cardano-api.components.library.doc
         hydraProject.hsPkgs.hydra-plutus.components.library.doc
         hydraProject.hsPkgs.hydra-node.components.library.doc
