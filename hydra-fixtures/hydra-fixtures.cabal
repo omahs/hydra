@@ -76,7 +76,6 @@ library
     Hydra.Fixtures.Evaluate
     Hydra.Fixtures.ProtocolParameters
     Hydra.Fixtures.Time
-    Hydra.Plutus.Time
 
   hs-source-dirs:  src
   build-depends:
@@ -96,6 +95,7 @@ library
     , data-default
     , flat
     , hydra-cardano-api
+    , hydra-plutus
     , hydra-prelude
     , ouroboros-consensus
     , ouroboros-consensus-cardano
