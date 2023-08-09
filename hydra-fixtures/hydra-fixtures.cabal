@@ -61,10 +61,8 @@ common project-config
 
   ghc-options:
     -Wall -Wcompat -Widentities -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wredundant-constraints
-    -Wnoncanonical-monad-instances -fobject-code
-    -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
-    -fno-strictness
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wunused-packages
+    -fprint-potential-instances
 
   if !flag(hydra-development)
     ghc-options: -Werror
@@ -79,26 +77,18 @@ library
 
   hs-source-dirs:  src
   build-depends:
-    , array
     , base
     , bytestring
-    , cardano-binary
-    , cardano-crypto-class
     , cardano-ledger-alonzo
     , cardano-ledger-babbage
     , cardano-ledger-core
-    , cardano-ledger-shelley
     , cardano-slotting
-    , cardano-strict-containers
     , containers
-    , contra-tracer
     , data-default
     , flat
     , hydra-cardano-api
     , hydra-plutus
     , hydra-prelude
-    , ouroboros-consensus
-    , ouroboros-consensus-cardano
     , plutus-core
     , plutus-ledger-api:{plutus-ledger-api, plutus-ledger-api-testlib}  >=1.1.1.0
     , QuickCheck
