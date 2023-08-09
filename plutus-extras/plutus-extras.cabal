@@ -1,0 +1,84 @@
+cabal-version: 3.0
+name:          plutus-extras
+version:       0.12.0
+synopsis:
+  Several extras and extensions of plutus-tx and plutus-ledger-api
+
+author:        IOG
+copyright:     2022 IOG
+license:       Apache-2.0
+license-files:
+  LICENSE
+  NOTICE
+
+source-repository head
+  type:     git
+  location: https://github.com/input-output-hk/hydra
+
+flag hydra-development
+  description: Disable -Werror for development
+  default:     False
+  manual:      True
+
+common project-config
+  default-extensions:
+    NoImplicitPrelude
+    BangPatterns
+    BinaryLiterals
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveTraversable
+    DerivingStrategies
+    EmptyDataDecls
+    ExistentialQuantification
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedStrings
+    PartialTypeSignatures
+    PatternGuards
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeFamilies
+    TypeOperators
+    TypeSynonymInstances
+    ViewPatterns
+
+  ghc-options:
+    -Wall -Wcompat -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wredundant-constraints -Wunused-packages
+    -fprint-potential-instances
+
+  if !flag(hydra-development)
+    ghc-options: -Werror
+
+library
+  import:          project-config
+  exposed-modules: Plutus.Extras
+  hs-source-dirs:  src
+  build-depends:
+    , base
+    , cardano-api
+    , plutus-ledger-api  >=1.1.1.0
+    , plutus-tx          >=1.1.1.0
+
+  if flag(hydra-development)
+    -- NOTE(SN): should fix HLS choking on PlutusTx plugin
+    ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors

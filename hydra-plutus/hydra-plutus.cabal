@@ -91,7 +91,6 @@ library
     Hydra.Data.Utxo
     Hydra.Plutus.Time
     Hydra.ScriptContext
-    Plutus.Extras
     Plutus.Orphans
 
   hs-source-dirs:  src
@@ -105,6 +104,7 @@ library
     , hydra-cardano-api
     , hydra-prelude
     , plutus-core
+    , plutus-extras
     , plutus-ledger-api
     , plutus-tx
     , plutus-tx-plugin

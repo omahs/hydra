@@ -125,6 +125,7 @@ benchmark on-chain-cost
     , hydra-prelude
     , hydra-test-utils       >=0.10.0
     , plutus-core
+    , plutus-extras
     , plutus-ledger-api      >=1.1.0.0
     , plutus-merkle-tree
     , plutus-tx

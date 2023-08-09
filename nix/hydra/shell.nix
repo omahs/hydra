@@ -77,6 +77,7 @@ let
       hydra-prelude
       hydra-cardano-api
       hydra-test-utils
+      plutus-extras
       plutus-cbor
       plutus-merkle-tree
       hydra-plutus

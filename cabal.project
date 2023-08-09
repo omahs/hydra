@@ -21,6 +21,7 @@ packages:
   hydra-cardano-api
   hydra-fixtures
   hydra-test-utils
+  plutus-extras
   plutus-cbor
   plutus-merkle-tree
   hydra-plutus

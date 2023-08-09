@@ -3,14 +3,15 @@
 
 module Plutus.Extras where
 
-import Hydra.Prelude hiding (fromMaybe)
+import Prelude
 
-import Hydra.Cardano.Api (
+import Cardano.Api (
+  PlutusScriptVersion,
   SerialiseAsRawBytes (serialiseToRawBytes),
-  fromPlutusScript,
   hashScript,
   pattern PlutusScript,
  )
+import Cardano.Api.Shelley (PlutusScript (PlutusScriptSerialised))
 import PlutusLedgerApi.Common (SerialisedScript)
 import PlutusLedgerApi.V2 (ScriptHash (..))
 import PlutusTx (BuiltinData, UnsafeFromData (..))
@@ -56,11 +57,11 @@ wrapMintingPolicy f r c =
 
 -- | Compute the on-chain 'ScriptHash' for a given serialised plutus script. Use
 -- this to refer to another validator script.
-scriptValidatorHash :: SerialisedScript -> ScriptHash
-scriptValidatorHash =
+scriptValidatorHash :: PlutusScriptVersion lang -> SerialisedScript -> ScriptHash
+scriptValidatorHash version =
   ScriptHash
     . toBuiltin
     . serialiseToRawBytes
     . hashScript
-    . PlutusScript
-    . fromPlutusScript
+    . PlutusScript version
+    . PlutusScriptSerialised
