@@ -2,7 +2,11 @@ module Main where
 
 import Hydra.Prelude
 
-import Network.HTTP.Types.Status (status200, status404)
+import Hydra.Cardano.Api (AsType (..))
+import Hydra.Cardano.Api.Pretty (renderTx)
+import Hydra.Chain.Direct.Util (readFileTextEnvelopeThrow)
+import Hydra.Painter (Pixel (..), mkPaintTx)
+import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai (
   Application,
   pathInfo,
@@ -11,10 +15,13 @@ import Network.Wai (
   responseLBS,
  )
 import qualified Network.Wai.Handler.Warp as Warp
+import Safe (readMay)
+import Test.QuickCheck (generate)
 
 main :: IO ()
 main = do
-  Warp.runSettings settings httpApp
+  key <- requireEnv "HYDRAW_CARDANO_SIGNING_KEY"
+  Warp.runSettings settings (httpApp key)
  where
   port = 1337
 
@@ -28,9 +35,31 @@ main = do
             putStrLn $ "Listening on: tcp/" <> show port
         )
 
-httpApp :: Application
-httpApp req send =
+-- | Like 'lookupEnv' but terminate program with a message if environment
+-- variable is not set.
+requireEnv :: String -> IO String
+requireEnv name =
+  lookupEnv name >>= \case
+    Just value -> pure value
+    Nothing -> die $ "Error: Required environment variable " <> name <> " not set"
+
+httpApp :: FilePath -> Application
+httpApp keyPath req send =
   case (requestMethod req, pathInfo req) of
+    ("GET", "paint" : args) -> do
+      case traverse (readMay . toString) args of
+        Just [x, y, red, green, blue] -> do
+          putStrLn $ show (x, y) <> " -> " <> show (red, green, blue)
+
+          sk <- readFileTextEnvelopeThrow (AsSigningKey AsPaymentKey) keyPath
+          (txIn, txOut) <- generate arbitrary
+          case mkPaintTx (txIn, txOut) sk Pixel{x, y, red, green, blue} of
+            Right tx -> do
+              putStrLn (renderTx tx)
+              send $ responseLBS status200 corsHeaders "OK"
+            Left err -> fail $ "error: " <> show err
+        _ ->
+          send handleError
     ("HEAD", _) -> send $ responseLBS status200 corsHeaders ""
     -- Statically serve files
     ("GET", []) -> send $ handleFile "index.html"
@@ -41,6 +70,8 @@ httpApp req send =
     _ ->
       send handleNotFound
  where
+  handleError = responseLBS status400 corsHeaders "INVALID REQUEST"
+
   handleNotFound = responseLBS status404 corsHeaders "NOT FOUND"
 
   handleFile filepath = responseFile status200 corsHeaders filepath Nothing

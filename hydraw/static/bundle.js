@@ -17,6 +17,7 @@ const drawPixel = (x, y, rgb) => {
   ctx.fillRect(x, y, 1, 1);
 }
 
+
 canvas.addEventListener('click', function (e) {
   console.log("event", e);
   const canvasPosition = {
@@ -33,7 +34,10 @@ canvas.addEventListener('click', function (e) {
   const x = Math.floor(clickedPixel.x);
   const y = Math.floor(clickedPixel.y);
 
-  drawPixel(x, y, currentColor);
+  const [r, g, b] = currentColor;
+  fetch(`/paint/${x}/${y}/${r}/${g}/${b}`)
+    .then(() => console.log("Ok"))
+    .catch(e => console.log("Error", e));
 });
 
 // Color picker
