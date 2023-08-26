@@ -2,10 +2,9 @@ module Main where
 
 import Hydra.Prelude
 
-import Hydra.Cardano.Api (AsType (..))
-import Hydra.Cardano.Api.Pretty (renderTx)
-import Hydra.Chain.Direct.Util (readFileTextEnvelopeThrow)
-import Hydra.Painter (Pixel (..), mkPaintTx)
+import Hydra.Cardano.Api (NetworkId (..), NetworkMagic (..))
+import Hydra.Network (readHost)
+import Hydra.Painter (Pixel (..), paintPixel, withClient)
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai (
   Application,
@@ -15,13 +14,16 @@ import Network.Wai (
   responseLBS,
  )
 import qualified Network.Wai.Handler.Warp as Warp
+import Network.WebSockets (Connection)
 import Safe (readMay)
-import Test.QuickCheck (generate)
 
 main :: IO ()
 main = do
   key <- requireEnv "HYDRAW_CARDANO_SIGNING_KEY"
-  Warp.runSettings settings (httpApp key)
+  host <- parseHost =<< requireEnv "HYDRA_API_HOST"
+  let networkId = Testnet (NetworkMagic 1)
+  withClient host $ \con ->
+    Warp.runSettings settings (httpApp networkId key con)
  where
   port = 1337
 
@@ -35,6 +37,11 @@ main = do
             putStrLn $ "Listening on: tcp/" <> show port
         )
 
+  parseHost str =
+    case readHost str of
+      Nothing -> fail $ "Could not parse host address: " <> str
+      Just host -> pure host
+
 -- | Like 'lookupEnv' but terminate program with a message if environment
 -- variable is not set.
 requireEnv :: String -> IO String
@@ -43,21 +50,15 @@ requireEnv name =
     Just value -> pure value
     Nothing -> die $ "Error: Required environment variable " <> name <> " not set"
 
-httpApp :: FilePath -> Application
-httpApp keyPath req send =
+httpApp :: NetworkId -> FilePath -> Connection -> Application
+httpApp networkId keyPath con req send =
   case (requestMethod req, pathInfo req) of
     ("GET", "paint" : args) -> do
       case traverse (readMay . toString) args of
         Just [x, y, red, green, blue] -> do
           putStrLn $ show (x, y) <> " -> " <> show (red, green, blue)
-
-          sk <- readFileTextEnvelopeThrow (AsSigningKey AsPaymentKey) keyPath
-          (txIn, txOut) <- generate arbitrary
-          case mkPaintTx (txIn, txOut) sk Pixel{x, y, red, green, blue} of
-            Right tx -> do
-              putStrLn (renderTx tx)
-              send $ responseLBS status200 corsHeaders "OK"
-            Left err -> fail $ "error: " <> show err
+          paintPixel networkId keyPath con Pixel{x, y, red, green, blue}
+          send $ responseLBS status200 corsHeaders "OK"
         _ ->
           send handleError
     ("HEAD", _) -> send $ responseLBS status200 corsHeaders ""

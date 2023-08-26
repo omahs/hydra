@@ -67,13 +67,11 @@ executable hydraw
   main-is:        Main.hs
   ghc-options:    -threaded -rtsopts
   build-depends:
-    , aeson
     , http-types
     , hydra-cardano-api
     , hydra-node
     , hydra-prelude
     , hydraw
-    , QuickCheck
     , safe
     , wai
     , wai-websockets
