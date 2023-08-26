@@ -6,6 +6,19 @@ const client = new WebSocket(protocol + "//" + window.location.host);
 client.addEventListener("message", e => {
   const msg = JSON.parse(e.data);
   console.log("Received mesage", msg);
+  switch (msg.tag) {
+    case "TxValid":
+      // TODO: Should only record tx here and draw pixels on SnapshotConfirmed
+      console.log("New transaction seen", msg.transaction.id);
+      if (msg.transaction.auxiliaryData != null) {
+        console.log("Transaction has auxiliary data", msg.transaction.auxiliaryData);
+        const aux = cbor.decodeFirstSync(msg.transaction.auxiliaryData).value;
+        const [x, y, r, g, b] = (aux.get(0) || aux.get(1)).get(14);
+        drawPixel(x, y, [r, g, b]);
+      }
+    default:
+      console.log("Irrelevant message", msg);
+  }
 });
 
 // Canvas
