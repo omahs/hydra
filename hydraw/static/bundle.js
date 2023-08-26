@@ -1,3 +1,13 @@
+// Websocket to backend (proxied to hydra-node)
+
+const protocol = window.location.protocol == "https:" ? "wss:" : "ws:";
+const client = new WebSocket(protocol + "//" + window.location.host);
+
+client.addEventListener("message", e => {
+  const msg = JSON.parse(e.data);
+  console.log("Received mesage", msg);
+});
+
 // Canvas
 
 const CANVAS_SIZE = 32;

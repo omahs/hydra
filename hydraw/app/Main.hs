@@ -3,7 +3,7 @@ module Main where
 import Hydra.Prelude
 
 import Hydra.Cardano.Api (NetworkId (..), NetworkMagic (..))
-import Hydra.Network (readHost)
+import Hydra.Network (Host, readHost)
 import Hydra.Painter (Pixel (..), paintPixel, withClient)
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai (
@@ -14,7 +14,9 @@ import Network.Wai (
   responseLBS,
  )
 import qualified Network.Wai.Handler.Warp as Warp
-import Network.WebSockets (Connection)
+import qualified Network.Wai.Handler.WebSockets as Wai
+import Network.WebSockets (Connection, PendingConnection)
+import qualified Network.WebSockets as WS
 import Safe (readMay)
 
 main :: IO ()
@@ -23,7 +25,11 @@ main = do
   host <- parseHost =<< requireEnv "HYDRA_API_HOST"
   let networkId = Testnet (NetworkMagic 1)
   withClient host $ \con ->
-    Warp.runSettings settings (httpApp networkId key con)
+    Warp.runSettings settings $
+      Wai.websocketsOr
+        WS.defaultConnectionOptions
+        (proxyWebsocket host)
+        (httpApp networkId key con)
  where
   port = 1337
 
@@ -49,6 +55,16 @@ requireEnv name =
   lookupEnv name >>= \case
     Just value -> pure value
     Nothing -> die $ "Error: Required environment variable " <> name <> " not set"
+
+-- | Accept an incoming websocket connect, connect to hydra-node and forward all
+-- messages (in both directions)
+proxyWebsocket :: Host -> PendingConnection -> IO ()
+proxyWebsocket host pendingConnection = do
+  frontend <- WS.acceptRequest pendingConnection
+  withClient host $ \backend ->
+    concurrently_
+      (forever $ WS.receive frontend >>= WS.send backend)
+      (forever $ WS.receive backend >>= WS.send frontend)
 
 httpApp :: NetworkId -> FilePath -> Connection -> Application
 httpApp networkId keyPath con req send =
