@@ -224,6 +224,42 @@ onInitialChainCollectTx st newChainState =
   -- untrue?
   InitialState{committed, headId} = st
 
+-- | Observe an increment transaction.
+--
+-- __Transition__: 'OpenState' → 'OpenState'
+onOpenChainIncrementTx ::
+  IsTx tx =>
+  Environment ->
+  OpenState tx ->
+  -- | Incrementally committed UTxO
+  UTxOType tx ->
+  -- | New chain state
+  ChainStateType tx ->
+  Outcome tx
+onOpenChainIncrementTx env st committedUTxO chainState =
+  if not snapshotInFlight && isLeader parameters party nextSn
+    then
+      StateChanged IncrementallyCommittedUTxO{committedUTxO, chainState}
+        <> StateChanged SnapshotRequestDecided{snapshotNumber = nextSn}
+        <> Effects [NetworkEffect (ReqSn nextSn (txId <$> localTxs) committedUTxO)]
+    else StateChanged IncrementallyCommittedUTxO{committedUTxO, chainState}
+ where
+  Environment{party} = env
+
+  CoordinatedHeadState{localTxs, confirmedSnapshot, seenSnapshot} = coordinatedHeadState
+
+  Snapshot{number = confirmedSn} = getSnapshot confirmedSnapshot
+
+  OpenState{coordinatedHeadState, parameters} = st
+
+  snapshotInFlight = case seenSnapshot of
+    NoSeenSnapshot -> False
+    LastSeenSnapshot{} -> False
+    RequestedSnapshot{} -> True
+    SeenSnapshot{} -> True
+
+  nextSn = confirmedSn + 1
+
 -- ** Off-chain protocol
 
 -- | Client request to ingest a new transaction into the head.
@@ -266,7 +302,7 @@ onOpenNetworkReqTx env ledger st ttl tx =
               -- spec. Do we really need to store that we have
               -- requested a snapshot? If yes, should update spec.
               <> StateChanged SnapshotRequestDecided{snapshotNumber = nextSn}
-              <> Effects [NetworkEffect (ReqSn nextSn (txId <$> localTxs'))]
+              <> Effects [NetworkEffect (ReqSn nextSn (txId <$> localTxs') mempty)]
           else StateChanged (TransactionAppliedToLocalUTxO{tx, newLocalUTxO})
       )
         <> Effects [ClientEffect $ ServerOutput.TxValid headId tx]
@@ -333,11 +369,10 @@ onOpenNetworkReqSn ::
   SnapshotNumber ->
   -- | List of transactions to snapshot.
   [TxIdType tx] ->
+  -- | Incrementally committed UTxO
+  UTxOType tx ->
   Outcome tx
-onOpenNetworkReqSn env ledger st otherParty sn requestedTxIds =
-  -- TODO: Verify the request is signed by (?) / comes from the leader
-  -- (Can we prove a message comes from a given peer, without signature?)
-
+onOpenNetworkReqSn env ledger st otherParty sn requestedTxIds incrementUTxO =
   -- Spec: require s = ŝ + 1 and leader(s) = j
   requireReqSn $
     -- Spec: wait s̅ = ŝ
@@ -348,14 +383,16 @@ onOpenNetworkReqSn env ledger st otherParty sn requestedTxIds =
         let requestedTxs = mapMaybe (`Map.lookup` allTxs) requestedTxIds
         -- Spec: require U̅ ◦ Treq /= ⊥ combined with Û ← Ū̅ ◦ Treq
         requireApplyTxs requestedTxs $ \u -> do
+          -- TODO: update spec
+          let u' = u <> incrementUTxO
           -- NOTE: confSn == seenSn == sn here
-          let nextSnapshot = Snapshot (confSn + 1) u requestedTxIds
+          let nextSnapshot = Snapshot (confSn + 1) u' requestedTxIds
           -- Spec: σᵢ
           let snapshotSignature = sign signingKey nextSnapshot
           (Effects [NetworkEffect $ AckSn snapshotSignature sn] <>) $
             do
               -- Spec: for loop which updates T̂ and L̂
-              let (newLocalTxs, newLocalUTxO) = pruneTransactions u
+              let (newLocalTxs, newLocalUTxO) = pruneTransactions u'
               -- Spec (in aggregate): Tall ← {tx | ∀tx ∈ Tall : tx ∉ Treq }
               StateChanged
                 SnapshotRequested
@@ -508,7 +545,7 @@ onOpenNetworkAckSn Environment{party} openState otherParty snapshotSignature sn 
       then
         outcome
           <> StateChanged SnapshotRequestDecided{snapshotNumber = nextSn}
-          <> Effects [NetworkEffect (ReqSn nextSn (txId <$> localTxs))]
+          <> Effects [NetworkEffect (ReqSn nextSn (txId <$> localTxs) pendingIncrementUTxO)]
       else outcome
 
   nextSn = sn + 1
@@ -521,7 +558,11 @@ onOpenNetworkAckSn Environment{party} openState otherParty snapshotSignature sn 
     , headId
     } = openState
 
-  CoordinatedHeadState{seenSnapshot, localTxs} = coordinatedHeadState
+  CoordinatedHeadState
+    { seenSnapshot
+    , localTxs
+    , pendingIncrementUTxO
+    } = coordinatedHeadState
 
 -- ** Closing the Head
 
@@ -667,15 +708,17 @@ update env ledger st ev = case (st, ev) of
   (Initial InitialState{committed, headId}, ClientEvent GetUTxO) ->
     Effects [ClientEffect . ServerOutput.GetUTxOResponse headId $ fold committed]
   -- Open
+  (Open openState, OnChainEvent Observation{observedTx = OnIncrementTx{committed}, newChainState}) ->
+    onOpenChainIncrementTx env openState committed newChainState
   (Open openState, ClientEvent Close) ->
     onOpenClientClose openState
   (Open{}, ClientEvent (NewTx tx)) ->
     onOpenClientNewTx tx
   (Open openState, NetworkEvent ttl _ (ReqTx tx)) ->
     onOpenNetworkReqTx env ledger openState ttl tx
-  (Open openState, NetworkEvent _ otherParty (ReqSn sn txIds)) ->
+  (Open openState, NetworkEvent _ otherParty (ReqSn sn txIds inc)) ->
     -- XXX: ttl == 0 not handled for ReqSn
-    onOpenNetworkReqSn env ledger openState otherParty sn txIds
+    onOpenNetworkReqSn env ledger openState otherParty sn txIds inc
   (Open openState, NetworkEvent _ otherParty (AckSn snapshotSignature sn)) ->
     -- XXX: ttl == 0 not handled for AckSn
     onOpenNetworkAckSn env openState otherParty snapshotSignature sn
@@ -843,11 +886,29 @@ aggregate st = \case
                   , localTxs = mempty
                   , confirmedSnapshot = InitialSnapshot{initialUTxO}
                   , seenSnapshot = NoSeenSnapshot
+                  , pendingIncrementUTxO = mempty
                   }
             , chainState
             , headId
             , currentSlot = chainStateSlot chainState
             }
+      _otherState -> st
+  IncrementallyCommittedUTxO{chainState, committedUTxO} ->
+    case st of
+      Open
+        os@OpenState
+          { coordinatedHeadState =
+            chs@CoordinatedHeadState{pendingIncrementUTxO}
+          } ->
+          Open
+            os
+              { chainState
+              , coordinatedHeadState =
+                  chs
+                    { pendingIncrementUTxO =
+                        pendingIncrementUTxO <> committedUTxO
+                    }
+              }
       _otherState -> st
   SnapshotConfirmed{snapshot, signatures} ->
     case st of

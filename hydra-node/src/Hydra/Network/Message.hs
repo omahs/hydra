@@ -19,7 +19,7 @@ data Connectivity
 
 data Message tx
   = ReqTx {transaction :: tx}
-  | ReqSn {snapshotNumber :: SnapshotNumber, transactionIds :: [TxIdType tx]}
+  | ReqSn {snapshotNumber :: SnapshotNumber, transactionIds :: [TxIdType tx], incrementUTxO :: UTxOType tx}
   | -- NOTE: We remove the party from the ackSn but, it would make sense to put it
     -- back as the signed snapshot is tied to the party and we should not
     -- consider which party sent this message to validate this snapshot signature.
@@ -42,14 +42,14 @@ instance IsTx tx => Arbitrary (Message tx) where
 instance (ToCBOR tx, ToCBOR (UTxOType tx), ToCBOR (TxIdType tx)) => ToCBOR (Message tx) where
   toCBOR = \case
     ReqTx tx -> toCBOR ("ReqTx" :: Text) <> toCBOR tx
-    ReqSn sn txs -> toCBOR ("ReqSn" :: Text) <> toCBOR sn <> toCBOR txs
+    ReqSn sn txs inc -> toCBOR ("ReqSn" :: Text) <> toCBOR sn <> toCBOR txs <> toCBOR inc
     AckSn sig sn -> toCBOR ("AckSn" :: Text) <> toCBOR sig <> toCBOR sn
 
 instance (FromCBOR tx, FromCBOR (UTxOType tx), FromCBOR (TxIdType tx)) => FromCBOR (Message tx) where
   fromCBOR =
     fromCBOR >>= \case
       ("ReqTx" :: Text) -> ReqTx <$> fromCBOR
-      "ReqSn" -> ReqSn <$> fromCBOR <*> fromCBOR
+      "ReqSn" -> ReqSn <$> fromCBOR <*> fromCBOR <*> fromCBOR
       "AckSn" -> AckSn <$> fromCBOR <*> fromCBOR
       msg -> fail $ show msg <> " is not a proper CBOR-encoded Message"
 

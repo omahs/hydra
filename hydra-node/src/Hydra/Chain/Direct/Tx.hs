@@ -939,6 +939,7 @@ data IncrementObservation = IncrementObservation
   { threadOutput :: OpenThreadOutput
   , headId :: HeadId
   , committed :: UTxO
+  , utxoHash :: UTxOHash
   }
   deriving (Show, Eq)
 
@@ -964,6 +965,7 @@ observeIncrementTx network utxo tx = do
       committed <-
         UTxO.fromPairs
           <$> traverse (Commit.deserializeCommit network) commits
+      utxoHash <- UTxOHash <$> decodeUtxoHash newHeadDatum
       pure
         IncrementObservation
           { headId
@@ -978,10 +980,17 @@ observeIncrementTx network utxo tx = do
                 , openContestationPeriod = contestationPeriod
                 }
           , committed
+          , utxoHash
           }
     _ -> Nothing
  where
   headScript = fromPlutusScript Head.validatorScript
+
+  -- XXX: DRY
+  decodeUtxoHash datum =
+    case fromScriptData datum of
+      Just Head.Open{utxoHash} -> Just $ fromBuiltin utxoHash
+      _ -> Nothing
 
 data CloseObservation = CloseObservation
   { threadOutput :: ClosedThreadOutput

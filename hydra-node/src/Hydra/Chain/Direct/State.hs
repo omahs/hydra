@@ -673,10 +673,10 @@ observeIncrement ctx st tx = do
   let utxo = getKnownUTxO st
   -- TODO: lookup transaction inputs and pass/merge them here in the utxo
   observation <- observeIncrementTx network utxo tx
-  let IncrementObservation{threadOutput, headId, committed} = observation
+  let IncrementObservation{threadOutput, headId, committed, utxoHash = newUtxoHash} = observation
   guard (headId == knownHeadId)
   let event = OnIncrementTx{committed}
-  pure (event, st{openThreadOutput = threadOutput})
+  pure (event, st{openThreadOutput = threadOutput, openUtxoHash = newUtxoHash})
  where
   network = networkIdToNetwork networkId
 

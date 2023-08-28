@@ -55,6 +55,10 @@ data StateChanged tx
       }
   | HeadAborted {chainState :: ChainStateType tx}
   | HeadOpened {chainState :: ChainStateType tx, initialUTxO :: UTxOType tx}
+  | IncrementallyCommittedUTxO
+      { committedUTxO :: UTxOType tx
+      , chainState :: ChainStateType tx
+      }
   | TransactionAppliedToLocalUTxO
       { tx :: tx
       , newLocalUTxO :: UTxOType tx
