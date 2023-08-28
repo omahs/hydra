@@ -16,7 +16,7 @@ import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV2))
 import Hydra.Contract.Commit (Commit (..))
 import qualified Hydra.Contract.Commit as Commit
 import Hydra.Contract.HeadError (HeadError (..), errorCode)
-import Hydra.Contract.HeadState (Input (..), Signature, SnapshotNumber, State (..))
+import Hydra.Contract.HeadState (Hash, Input (..), Signature, SnapshotNumber, State (..))
 import Hydra.Contract.Util (hasST, mustNotMintOrBurn, (===))
 import Hydra.Data.ContestationPeriod (ContestationPeriod, addContestationPeriod, milliseconds)
 import Hydra.Data.Party (Party (vkey))
@@ -73,6 +73,8 @@ headValidator oldState input ctx =
       checkCollectCom ctx (contestationPeriod, parties, headId)
     (Initial{parties, headId}, Abort) ->
       checkAbort ctx headId parties
+    (Open{parties, utxoHash, contestationPeriod, headId}, Increment{}) ->
+      checkIncrement ctx parties utxoHash contestationPeriod headId
     (Open{parties, utxoHash = initialUtxoHash, contestationPeriod, headId}, Close{signature}) ->
       checkClose ctx parties initialUtxoHash signature contestationPeriod headId
     (Closed{parties, snapshotNumber = closedSnapshotNumber, contestationDeadline, contestationPeriod, headId, contesters}, Contest{signature}) ->
@@ -234,6 +236,55 @@ commitDatum txInfo input = do
       commits
     Nothing -> []
 {-# INLINEABLE commitDatum #-}
+
+-- | The increment validator must verify that:
+--
+--   * FIXME: The resulting utxo hash is the result of adding committed UTxOs.
+--
+--   * FIXME: Value in v_head is correctly updated by the committed UTxOs.
+--
+--   * The transaction is performed (i.e. signed) by one of the head participants
+--
+--   * State token (ST) is present in the output
+checkIncrement ::
+  ScriptContext ->
+  [Party] ->
+  Hash ->
+  ContestationPeriod ->
+  CurrencySymbol ->
+  Bool
+checkIncrement ctx parties utxoHash contestationPeriod headId =
+  mustRecordComittedUtxo
+    && mustCommitValue
+    && mustBeSignedByParticipant ctx headId
+    && mustNotChangeParameters
+ where
+  mustRecordComittedUtxo =
+    -- FIXME: Verify SMT root utxoHash' using proofs (from redeemer) for each committed UTxO
+    utxoHash /= utxoHash'
+
+  mustCommitValue =
+    -- FIXME: Check this (like vInitial)
+    True
+
+  mustNotChangeParameters =
+    traceIfFalse $(errorCode ChangedParameters) $
+      headId' == headId
+        && parties' == parties
+        && contestationPeriod' == contestationPeriod
+
+  (parties', utxoHash', contestationPeriod', headId') =
+    -- XXX: fromBuiltinData is super big (and also expensive?)
+    case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
+      Just
+        Open
+          { parties = p
+          , utxoHash = h
+          , contestationPeriod = cp
+          , headId = hId
+          } ->
+          (p, h, cp, hId)
+      _ -> traceError $(errorCode WrongStateInOutputDatum)
 
 -- | The close validator must verify that:
 --
