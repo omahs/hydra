@@ -217,6 +217,7 @@ singlePartyCommitsIncrementally tracer workDir node hydraScriptsTxId =
       requestCommitTx n1 committedUTxO <&> signTx someSk >>= submitTx node
 
       -- TODO: assert funds are (eventually) made available through a snapshot
+
       threadDelay 5
 
       send n1 $ input "GetUTxO" []
@@ -224,6 +225,11 @@ singlePartyCommitsIncrementally tracer workDir node hydraScriptsTxId =
         guard $ v ^? key "tag" == Just "GetUTxOResponse"
         v ^? key "utxo"
       availableUTxO `shouldBe` toJSON committedUTxO
+
+      -- TODO: another increment
+
+      -- TODO: close is possible
+      pure ()
  where
   RunningNode{networkId, nodeSocket} = node
 
