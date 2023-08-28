@@ -30,12 +30,15 @@ import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (IP, PortNumber)
 import Hydra.Party (Party)
 import Hydra.Persistence (PersistenceIncremental (..))
+import Network.HTTP.Types (status500)
+import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp (
   defaultSettings,
   runSettings,
   setBeforeMainLoop,
   setHost,
   setOnException,
+  setOnExceptionResponse,
   setPort,
  )
 import Network.Wai.Handler.WebSockets (websocketsOr)
@@ -85,6 +88,7 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
             & setHost (fromString $ show host)
             & setPort (fromIntegral port)
             & setOnException (\_ e -> traceWith tracer $ APIConnectionError{reason = show e})
+            & setOnExceptionResponse (\e -> responseLBS status500 [] $ "Internal Server Error: " <> show e)
             & setBeforeMainLoop notifyServerRunning
     race_
       ( do
