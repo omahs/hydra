@@ -18,7 +18,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base16 as Base16
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Hydra.Cardano.Api.Network (networkIdToNetwork)
+import Hydra.Cardano.Api.Network (Network, networkIdToNetwork)
 import Hydra.Chain (HeadId (..), HeadParameters (..))
 import Hydra.Chain.Direct.ScriptRegistry (ScriptRegistry (..))
 import Hydra.Chain.Direct.TimeHandle (PointInTime)
@@ -349,7 +349,7 @@ incrementTx scriptRegistry vk headId utxoToCommitWitnessed openThreadOutput =
     fromPlutusScript @PlutusScriptV2 Head.validatorScript
 
   headRedeemer =
-    toScriptData Head.Increment{committedRefs}
+    toScriptData Head.Increment{commits}
 
   headOutputAfter =
     modifyTxOutDatum (const headDatumAfter) headOutputBefore
@@ -363,8 +363,8 @@ incrementTx scriptRegistry vk headId utxoToCommitWitnessed openThreadOutput =
         , headId = headIdToCurrencySymbol headId
         }
 
-  committedRefs =
-    toPlutusTxOutRef . fst <$> committedTxIns
+  commits =
+    mapMaybe Commit.serializeCommit $ UTxO.pairs utxoToCommit
 
   committedTxIns =
     map (\(i, (_, w)) -> (i, BuildTxWith w)) $ UTxO.pairs utxoToCommitWitnessed
@@ -944,26 +944,26 @@ data IncrementObservation = IncrementObservation
 
 -- | Identify an increment tx decoding the Head redeemer.
 observeIncrementTx ::
+  Network ->
   -- | A UTxO set to lookup tx inputs
   UTxO ->
   Tx ->
   Maybe IncrementObservation
-observeIncrementTx utxo tx = do
+observeIncrementTx network utxo tx = do
   (headInput, headOutput) <- findTxOutByScript @PlutusScriptV2 utxo headScript
   redeemer <- findRedeemerSpending tx headInput
   oldHeadDatum <- lookupScriptData tx headOutput
   datum <- fromScriptData oldHeadDatum
   headId <- findStateToken headOutput
   case (datum, redeemer) of
-    (Head.Open{parties, contestationPeriod}, Head.Increment{committedRefs}) -> do
+    (Head.Open{parties, contestationPeriod}, Head.Increment{commits}) -> do
       (newHeadInput, newHeadOutput) <- findTxOutByScript @PlutusScriptV2 (utxoFromTx tx) headScript
       newHeadDatum <- lookupScriptData tx newHeadOutput
-      -- NOTE: The on-chain script already checked that comittedRefs are
-      -- actually spent on this transaction
-      let committed =
-            committedRefs
-              & mapMaybe (resolveTxIn . fromPlutusTxOutRef)
-              & UTxO.fromPairs
+      -- TODO: Observe UTxO by resolving in utxo instead. However, the passed
+      -- utxo is "too small" and does not inlude all tx inputs.
+      committed <-
+        UTxO.fromPairs
+          <$> traverse (Commit.deserializeCommit network) commits
       pure
         IncrementObservation
           { headId
@@ -982,8 +982,6 @@ observeIncrementTx utxo tx = do
     _ -> Nothing
  where
   headScript = fromPlutusScript Head.validatorScript
-
-  resolveTxIn i = (i,) <$> UTxO.resolve i utxo
 
 data CloseObservation = CloseObservation
   { threadOutput :: ClosedThreadOutput

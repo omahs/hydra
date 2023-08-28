@@ -8,6 +8,7 @@ module Hydra.Contract.HeadState where
 import PlutusTx.Prelude
 
 import GHC.Generics (Generic)
+import Hydra.Contract.Commit (Commit)
 import Hydra.Data.ContestationPeriod (ContestationPeriod)
 import Hydra.Data.Party (Party)
 import PlutusLedgerApi.V2 (CurrencySymbol, POSIXTime, PubKeyHash, TxOutRef)
@@ -50,8 +51,9 @@ PlutusTx.unstableMakeIsData ''State
 data Input
   = CollectCom
   | Increment
-      { committedRefs :: [TxOutRef]
-      -- ^ Points to the committed Utxo.
+      { commits :: [Commit]
+      -- ^ Serialized UTxO to commit.
+      -- TODO: Only record [TxOutRef] here. This requires a resolved transaction
       }
   | Close
       { signature :: [Signature]

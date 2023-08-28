@@ -53,6 +53,7 @@ import Hydra.Cardano.Api (
   pattern ShelleyAddressInEra,
   pattern TxOut,
  )
+import Hydra.Cardano.Api.Network (networkIdToNetwork)
 import Hydra.Chain (
   ChainStateType,
   HeadId (..),
@@ -552,7 +553,7 @@ observeSomeTx ctx cst tx = case cst of
       <|> (,Idle) <$> observeAbort st tx
       <|> second Open <$> observeCollect st tx
   Open st ->
-    second Open <$> observeIncrement st tx
+    second Open <$> observeIncrement ctx st tx
       <|> second Closed <$> observeClose st tx
   Closed st ->
     second Closed <$> observeContest st tx
@@ -664,18 +665,23 @@ observeAbort st tx = do
 -- | Observe an increment transition using a 'OpenState' and 'observeIncrementTx'.
 -- This function checks the head id and ignores if not relevant.
 observeIncrement ::
+  ChainContext ->
   OpenState ->
   Tx ->
   Maybe (OnChainTx Tx, OpenState)
-observeIncrement st tx = do
+observeIncrement ctx st tx = do
   let utxo = getKnownUTxO st
-  -- TODO: lookup committed utxo inputs
-  observation <- observeIncrementTx utxo tx
+  -- TODO: lookup transaction inputs and pass/merge them here in the utxo
+  observation <- observeIncrementTx network utxo tx
   let IncrementObservation{threadOutput, headId, committed} = observation
   guard (headId == knownHeadId)
   let event = OnIncrementTx{committed}
   pure (event, st{openThreadOutput = threadOutput})
  where
+  network = networkIdToNetwork networkId
+
+  ChainContext{networkId} = ctx
+
   OpenState{headId = knownHeadId} = st
 
 -- | Observe a close transition using a 'OpenState' and 'observeCloseTx'.
