@@ -134,7 +134,6 @@ library
     , data-default
     , directory
     , filepath
-    , hspec-expectations
     , http-client
     , hydra-cardano-api
     , hydra-node
