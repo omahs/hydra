@@ -932,6 +932,48 @@ observeCollectComTx utxo tx = do
       Just Head.Open{utxoHash} -> Just $ fromBuiltin utxoHash
       _ -> Nothing
 
+data IncrementObservation = IncrementObservation
+  { threadOutput :: OpenThreadOutput
+  , headId :: HeadId
+  , committed :: UTxO
+  }
+  deriving (Show, Eq)
+
+-- | Identify an increment tx decoding the Head redeemer.
+observeIncrementTx ::
+  -- | A UTxO set to lookup tx inputs
+  UTxO ->
+  Tx ->
+  Maybe IncrementObservation
+observeIncrementTx utxo tx = do
+  (headInput, headOutput) <- findTxOutByScript @PlutusScriptV2 utxo headScript
+  redeemer <- findRedeemerSpending tx headInput
+  oldHeadDatum <- lookupScriptData tx headOutput
+  datum <- fromScriptData oldHeadDatum
+  headId <- findStateToken headOutput
+  case (datum, redeemer) of
+    (Head.Open{parties, contestationPeriod}, Head.Increment{}) -> do
+      (newHeadInput, newHeadOutput) <- findTxOutByScript @PlutusScriptV2 (utxoFromTx tx) headScript
+      newHeadDatum <- lookupScriptData tx newHeadOutput
+      pure
+        IncrementObservation
+          { headId
+          , threadOutput =
+              OpenThreadOutput
+                { openThreadUTxO =
+                    ( newHeadInput
+                    , newHeadOutput
+                    , newHeadDatum
+                    )
+                , openParties = parties
+                , openContestationPeriod = contestationPeriod
+                }
+          , committed = mempty -- TODO: observe committed UTxO
+          }
+    _ -> Nothing
+ where
+  headScript = fromPlutusScript Head.validatorScript
+
 data CloseObservation = CloseObservation
   { threadOutput :: ClosedThreadOutput
   , headId :: HeadId

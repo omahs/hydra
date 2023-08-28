@@ -107,6 +107,7 @@ data OnChainTx tx
   | OnCommitTx {party :: Party, committed :: UTxOType tx}
   | OnAbortTx
   | OnCollectComTx
+  | OnIncrementTx {committed :: UTxOType tx}
   | OnCloseTx
       { headId :: HeadId
       , snapshotNumber :: SnapshotNumber

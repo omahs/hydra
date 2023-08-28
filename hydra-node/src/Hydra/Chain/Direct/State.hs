@@ -79,6 +79,7 @@ import Hydra.Chain.Direct.Tx (
   CommitObservation (..),
   ContestObservation (..),
   FanoutObservation (FanoutObservation),
+  IncrementObservation (..),
   InitObservation (..),
   InitialThreadOutput (..),
   NotAnInitReason,
@@ -100,6 +101,7 @@ import Hydra.Chain.Direct.Tx (
   observeCommitTx,
   observeContestTx,
   observeFanoutTx,
+  observeIncrementTx,
   observeInitTx,
  )
 import Hydra.ContestationPeriod (ContestationPeriod)
@@ -549,7 +551,9 @@ observeSomeTx ctx cst tx = case cst of
     second Initial <$> observeCommit ctx st tx
       <|> (,Idle) <$> observeAbort st tx
       <|> second Open <$> observeCollect st tx
-  Open st -> second Closed <$> observeClose st tx
+  Open st ->
+    second Open <$> observeIncrement st tx
+      <|> second Closed <$> observeClose st tx
   Closed st ->
     second Closed <$> observeContest st tx
       <|> (,Idle) <$> observeFanout st tx
@@ -656,6 +660,23 @@ observeAbort st tx = do
   pure OnAbortTx
 
 -- ** OpenState transitions
+
+-- | Observe an increment transition using a 'OpenState' and 'observeIncrementTx'.
+-- This function checks the head id and ignores if not relevant.
+observeIncrement ::
+  OpenState ->
+  Tx ->
+  Maybe (OnChainTx Tx, OpenState)
+observeIncrement st tx = do
+  let utxo = getKnownUTxO st
+  -- TODO: lookup committed utxo inputs
+  observation <- observeIncrementTx utxo tx
+  let IncrementObservation{threadOutput, headId, committed} = observation
+  guard (headId == knownHeadId)
+  let event = OnIncrementTx{committed}
+  pure (event, st{openThreadOutput = threadOutput})
+ where
+  OpenState{headId = knownHeadId} = st
 
 -- | Observe a close transition using a 'OpenState' and 'observeCloseTx'.
 -- This function checks the head id and ignores if not relevant.
