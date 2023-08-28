@@ -349,7 +349,7 @@ incrementTx scriptRegistry vk headId utxoToCommitWitnessed openThreadOutput =
     fromPlutusScript @PlutusScriptV2 Head.validatorScript
 
   headRedeemer =
-    toScriptData Head.Increment{}
+    toScriptData Head.Increment{committedRefs}
 
   headOutputAfter =
     modifyTxOutDatum (const headDatumAfter) headOutputBefore
@@ -362,6 +362,9 @@ incrementTx scriptRegistry vk headId utxoToCommitWitnessed openThreadOutput =
         , contestationPeriod = openContestationPeriod
         , headId = headIdToCurrencySymbol headId
         }
+
+  committedRefs =
+    toPlutusTxOutRef . fst <$> committedTxIns
 
   committedTxIns =
     map (\(i, (_, w)) -> (i, BuildTxWith w)) $ UTxO.pairs utxoToCommitWitnessed
@@ -952,9 +955,15 @@ observeIncrementTx utxo tx = do
   datum <- fromScriptData oldHeadDatum
   headId <- findStateToken headOutput
   case (datum, redeemer) of
-    (Head.Open{parties, contestationPeriod}, Head.Increment{}) -> do
+    (Head.Open{parties, contestationPeriod}, Head.Increment{committedRefs}) -> do
       (newHeadInput, newHeadOutput) <- findTxOutByScript @PlutusScriptV2 (utxoFromTx tx) headScript
       newHeadDatum <- lookupScriptData tx newHeadOutput
+      -- NOTE: The on-chain script already checked that comittedRefs are
+      -- actually spent on this transaction
+      let committed =
+            committedRefs
+              & mapMaybe (resolveTxIn . fromPlutusTxOutRef)
+              & UTxO.fromPairs
       pure
         IncrementObservation
           { headId
@@ -968,11 +977,13 @@ observeIncrementTx utxo tx = do
                 , openParties = parties
                 , openContestationPeriod = contestationPeriod
                 }
-          , committed = mempty -- TODO: observe committed UTxO
+          , committed
           }
     _ -> Nothing
  where
   headScript = fromPlutusScript Head.validatorScript
+
+  resolveTxIn i = (i,) <$> UTxO.resolve i utxo
 
 data CloseObservation = CloseObservation
   { threadOutput :: ClosedThreadOutput

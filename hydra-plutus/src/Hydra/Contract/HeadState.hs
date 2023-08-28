@@ -50,6 +50,9 @@ PlutusTx.unstableMakeIsData ''State
 data Input
   = CollectCom
   | Increment
+      { committedRefs :: [TxOutRef]
+      -- ^ Points to the committed Utxo.
+      }
   | Close
       { signature :: [Signature]
       }
