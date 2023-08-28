@@ -92,6 +92,7 @@ import Hydra.Chain.Direct.Tx (
   contestTx,
   fanoutTx,
   headTokensFromValue,
+  incrementTx,
   initTx,
   observeAbortTx,
   observeCloseTx,
@@ -435,6 +436,24 @@ collect ctx st = do
     } = st
 
   tripleToPair (a, b, c) = (a, (b, c))
+
+-- | Construct an increment transaction based on the 'OpenState' and the 'UTxO'
+-- to commit (including information how to spend it).
+increment' ::
+  ChainContext ->
+  OpenState ->
+  UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+  Either (PostTxError Tx) Tx
+increment' ctx st utxoToCommit = do
+  let utxo = fst <$> utxoToCommit
+  rejectByronAddress utxo
+  rejectReferenceScripts utxo
+  rejectMoreThanMainnetLimit networkId utxo
+  pure $ incrementTx scriptRegistry ownVerificationKey headId utxoToCommit openThreadOutput
+ where
+  ChainContext{networkId, ownVerificationKey, scriptRegistry} = ctx
+
+  OpenState{headId, openThreadOutput} = st
 
 -- | Construct a close transaction based on the 'OpenState' and a confirmed
 -- snapshot.

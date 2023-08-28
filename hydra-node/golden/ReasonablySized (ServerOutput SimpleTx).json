@@ -1548,7 +1548,7 @@
                 "tag": "CloseTx"
             },
             "postTxError": {
-                "tag": "FailedToDraftTxNotInitializing"
+                "tag": "FailedToDraftCommitTxWrongState"
             },
             "tag": "PostTxOnChainFailed"
         },
@@ -1780,7 +1780,7 @@
                 "tag": "ContestTx"
             },
             "postTxError": {
-                "tag": "FailedToDraftTxNotInitializing"
+                "tag": "FailedToDraftCommitTxWrongState"
             },
             "tag": "PostTxOnChainFailed"
         },

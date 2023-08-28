@@ -49,9 +49,9 @@ import Hydra.Ledger.Cardano.Builder (
   unsafeBuildTransaction,
  )
 import Hydra.Party (Party, partyFromChain, partyToChain)
+import Hydra.Plutus.Extras (posixFromUTCTime)
 import Hydra.Plutus.Orphans ()
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber, fromChainSnapshot)
-import Hydra.Plutus.Extras (posixFromUTCTime)
 import PlutusLedgerApi.V2 (CurrencySymbol (CurrencySymbol), fromBuiltin, toBuiltin)
 import qualified PlutusLedgerApi.V2 as Plutus
 
@@ -307,6 +307,69 @@ collectComTx networkId scriptRegistry vk initialThreadOutput commits headId =
     fromPlutusScript @PlutusScriptV2 Commit.validatorScript
   commitRedeemer =
     toScriptData $ Commit.redeemer Commit.ViaCollectCom
+
+-- | Create an increment transaction which includes a membership proof of the
+-- added UTxOs.
+incrementTx ::
+  -- | Published Hydra scripts to reference.
+  ScriptRegistry ->
+  -- | Party who's authorizing this transaction
+  VerificationKey PaymentKey ->
+  -- | Head identifier
+  HeadId ->
+  -- | The UTxO to incrementally commit to the Head along with witnesses.
+  UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+  -- | Everything needed to spend the Head state-machine output.
+  OpenThreadOutput ->
+  Tx
+incrementTx scriptRegistry vk headId utxoToCommitWitnessed openThreadOutput =
+  unsafeBuildTransaction $
+    emptyTxBody
+      & addInputs [(headInput, headWitness)]
+      & addReferenceInputs [headScriptRef]
+      & addInputs committedTxIns
+      & addOutputs [headOutputAfter]
+      & addExtraRequiredSigners [verificationKeyHash vk]
+ where
+  OpenThreadOutput
+    { openThreadUTxO = (headInput, headOutputBefore, ScriptDatumForTxIn -> headDatumBefore)
+    , openContestationPeriod
+    , openParties
+    } = openThreadOutput
+
+  headWitness =
+    BuildTxWith $
+      ScriptWitness scriptWitnessInCtx $
+        mkScriptReference headScriptRef headScript headDatumBefore headRedeemer
+
+  headScriptRef =
+    fst (headReference scriptRegistry)
+
+  headScript =
+    fromPlutusScript @PlutusScriptV2 Head.validatorScript
+
+  headRedeemer =
+    toScriptData Head.Increment{}
+
+  headOutputAfter =
+    modifyTxOutDatum (const headDatumAfter) headOutputBefore
+
+  headDatumAfter =
+    mkTxOutDatum
+      Head.Open
+        { Head.parties = openParties
+        , utxoHash = newUtxoHash
+        , contestationPeriod = openContestationPeriod
+        , headId = headIdToCurrencySymbol headId
+        }
+
+  committedTxIns =
+    map (\(i, (_, w)) -> (i, BuildTxWith w)) $ UTxO.pairs utxoToCommitWitnessed
+
+  -- TODO: make this SMT root and update it with correctly
+  newUtxoHash = toBuiltin $ hashUTxO @Tx utxoToCommit
+
+  utxoToCommit = fst <$> utxoToCommitWitnessed
 
 -- | Low-level data type of a snapshot to close the head with. This is different
 -- to the 'ConfirmedSnasphot', which is provided to `CloseTx` as it also

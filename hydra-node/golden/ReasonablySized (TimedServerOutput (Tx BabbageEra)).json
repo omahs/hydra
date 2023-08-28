@@ -11748,7 +11748,7 @@
                 "tag": "ContestTx"
             },
             "postTxError": {
-                "tag": "FailedToDraftTxNotInitializing"
+                "tag": "FailedToDraftCommitTxWrongState"
             },
             "seq": 2,
             "tag": "PostTxOnChainFailed",

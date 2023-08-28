@@ -1287,9 +1287,10 @@ components:
             tag:
               type: string
               enum: ["CommittedTooMuchADAForMainnet"]
-        - title: FailedToDraftTxNotInitializing
+        - title: FailedToDraftCommitTxWrongState
           description: |
-            Raised if the user tried to draft a commit tx while Head is not in Initializing state.
+            Raised if the user tried to draft a commit tx while Head is not in
+            Initializing or Open state.
           type: object
           additionalProperties: false
           required:
@@ -1297,7 +1298,7 @@ components:
           properties:
             tag:
               type: string
-              enum: ["FailedToDraftTxNotInitializing"]
+              enum: ["FailedToDraftCommitTxWrongState"]
         - title: SpendingNodeUtxoForbidden
           description: |
             Raised if the user tried to draft a commit tx using internal wallet's utxo.

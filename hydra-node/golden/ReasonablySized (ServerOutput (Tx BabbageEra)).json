@@ -12444,7 +12444,7 @@
                 "tag": "ContestTx"
             },
             "postTxError": {
-                "tag": "FailedToDraftTxNotInitializing"
+                "tag": "FailedToDraftCommitTxWrongState"
             },
             "tag": "PostTxOnChainFailed"
         },

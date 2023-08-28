@@ -152,8 +152,8 @@ data PostTxError tx
   | -- | User tried to commit more than 'maxMainnetLovelace' hardcoded limit on mainnet
     -- we keep track of both the hardcoded limit and what the user originally tried to commit
     CommittedTooMuchADAForMainnet {userCommittedLovelace :: Lovelace, mainnetLimitLovelace :: Lovelace}
-  | -- | We can only draft commit tx for the user when in Initializing state
-    FailedToDraftTxNotInitializing
+  | -- | We can only draft commit tx for the user when in Initializing or Open state
+    FailedToDraftCommitTxWrongState
   | -- | Committing UTxO addressed to the internal wallet is forbidden.
     SpendingNodeUtxoForbidden
   deriving (Generic)

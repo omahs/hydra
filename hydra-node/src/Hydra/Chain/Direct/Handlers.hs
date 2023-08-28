@@ -48,6 +48,7 @@ import Hydra.Chain.Direct.State (
   contestationPeriod,
   fanout,
   getKnownUTxO,
+  increment',
   initialize,
   observeSomeTx,
  )
@@ -85,7 +86,6 @@ newLocalChainState chainStateAt = do
       , rollback = rollback tv
       }
  where
-
   pushNew tv cs =
     modifyTVar tv $ \prev ->
       cs{previous = Just prev}
@@ -152,24 +152,27 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
           atomically (prepareTxToPost timeHandle wallet ctx chainState tx)
             >>= finalizeTx wallet ctx chainState mempty
         submitTx vtx
-    , -- Handle that creates a draft commit tx using the user utxo.
-      -- Possible errors are handled at the api server level.
-      draftCommitTx = \utxoToCommit -> do
-        chainState <- atomically getLatest
-        case Hydra.Chain.Direct.State.chainState chainState of
-          Initial st -> do
-            walletUtxos <- atomically getUTxO
-            let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
-            let userTxIns = Set.toList $ UTxO.inputSet utxoToCommit
-            let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
-            -- prevent trying to spend internal wallet's utxo
-            if null matchedWalletUtxo
-              then
+    , draftCommitTx = \utxoToCommit -> do
+        -- prevent trying to spend internal wallet's utxo
+        walletUtxos <- atomically getUTxO
+        let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
+        let userTxIns = Set.toList $ UTxO.inputSet utxoToCommit
+        let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
+        if not $ null matchedWalletUtxo
+          then pure $ Left SpendingNodeUtxoForbidden
+          else do
+            -- Either construct a normal or incremental commit transaction
+            chainState <- atomically getLatest
+            case Hydra.Chain.Direct.State.chainState chainState of
+              Initial st -> do
                 sequenceA $
                   commit' ctx st utxoToCommit
                     <&> finalizeTx wallet ctx chainState (fst <$> utxoToCommit)
-              else pure $ Left SpendingNodeUtxoForbidden
-          _ -> pure $ Left FailedToDraftTxNotInitializing
+              Open st -> do
+                sequenceA $
+                  increment' ctx st utxoToCommit
+                    <&> finalizeTx wallet ctx chainState (fst <$> utxoToCommit)
+              _ -> pure $ Left FailedToDraftCommitTxWrongState
     , -- Submit a cardano transaction to the cardano-node using the
       -- LocalTxSubmission protocol.
       submitTx
