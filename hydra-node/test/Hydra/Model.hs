@@ -76,7 +76,7 @@ import qualified Hydra.Snapshot as Snapshot
 import Test.QuickCheck (choose, counterexample, elements, frequency, resize, sized, tabulate, vectorOf)
 import Test.QuickCheck.DynamicLogic (DynLogicModel)
 import Test.QuickCheck.StateModel (Any (..), HasVariables, Realized, RunModel (..), StateModel (..), VarContext)
-import Test.QuickCheck.StateModel.Variables (HasVariables (..))
+import Test.QuickCheck.StateModel.Variables (HasVariables (..), Var)
 import qualified Prelude
 
 -- * The Model
@@ -172,6 +172,7 @@ instance StateModel WorldState where
     ObserveHeadIsOpen :: Action WorldState ()
     StopTheWorld :: Action WorldState ()
 
+  initialState :: WorldState
   initialState =
     WorldState
       { hydraParties = mempty
@@ -192,6 +193,7 @@ instance StateModel WorldState where
         genNewTx
       _ -> fmap Some genSeed
    where
+    genCommit :: PendingCommits -> Gen (Any (Action WorldState))
     genCommit pending = do
       party <- elements $ toList pending
       let (_, sk) = fromJust $ find ((== party) . deriveParty . fst) hydraParties
@@ -199,13 +201,16 @@ instance StateModel WorldState where
       let utxo = [(sk, value)]
       pure . Some $ Commit party utxo
 
+    genAbort :: Gen (Any (Action WorldState))
     genAbort = do
       (key, _) <- elements hydraParties
       let party = deriveParty key
       pure . Some $ Abort party
 
+    genNewTx :: Gen (Any (Action WorldState))
     genNewTx = genPayment st >>= \(party, transaction) -> pure . Some $ NewTx party transaction
 
+  precondition :: WorldState -> Action WorldState a -> Bool
   precondition WorldState{hydraState = Start} Seed{} =
     True
   precondition WorldState{hydraState = Idle{}} Init{} =
@@ -227,6 +232,7 @@ instance StateModel WorldState where
   precondition _ _ =
     False
 
+  nextState :: WorldState -> Action WorldState a -> Var a -> WorldState
   nextState s@WorldState{hydraParties, hydraState} a _ =
     case a of
       Seed{seedKeys, seedContestationPeriod} -> WorldState{hydraParties = seedKeys, hydraState = Idle{idleParties, cardanoKeys, idleContestationPeriod}}
