@@ -81,7 +81,7 @@ library
     , aeson
     , async
     , base
-    , brick                 ==0.73
+    , brick
     , containers
     , hydra-cardano-api
     , hydra-node
