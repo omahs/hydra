@@ -457,20 +457,25 @@ collect ctx headId headParams spendableUTxO = do
 -- NB: lower and upper bound slot difference should not exceed contestation period
 close ::
   ChainContext ->
-  OpenState ->
+  HeadId ->
+  HeadParameters ->
+  SpendableUTxO ->
   ConfirmedSnapshot Tx ->
   -- | 'Tx' validity lower bound
   SlotNo ->
   -- | 'Tx' validity upper bound
   PointInTime ->
   Tx
-close ctx st confirmedSnapshot startSlotNo pointInTime =
-  closeTx scriptRegistry ownVerificationKey closingSnapshot startSlotNo pointInTime openThreadOutput headId
+close ctx headId headParams spendableUTxO confirmedSnapshot startSlotNo pointInTime = do
+  -- FIXME: find the following in the spendableUTxO using headId
+  let spendableHeadOutput = undefined headId spendableUTxO
+  closeTx scriptRegistry ownVerificationKey closingSnapshot startSlotNo pointInTime spendableHeadOutput headId headParams
  where
   closingSnapshot = case confirmedSnapshot of
-    -- XXX: Not needing anything of the 'InitialSnapshot' is another hint that
-    -- we should not keep track of an actual initial 'Snapshot'
-    InitialSnapshot{} -> CloseWithInitialSnapshot{openUtxoHash}
+    InitialSnapshot{initialUTxO} ->
+      CloseWithInitialSnapshot
+        { openUtxoHash = UTxOHash $ hashUTxO @Tx initialUTxO
+        }
     ConfirmedSnapshot{snapshot = Snapshot{number, utxo}, signatures} ->
       CloseWithConfirmedSnapshot
         { snapshotNumber = number
@@ -479,12 +484,6 @@ close ctx st confirmedSnapshot startSlotNo pointInTime =
         }
 
   ChainContext{ownVerificationKey, scriptRegistry} = ctx
-
-  OpenState
-    { openThreadOutput
-    , openUtxoHash
-    , headId
-    } = st
 
 -- | Construct a contest transaction based on the 'ClosedState' and a confirmed
 -- snapshot. The given 'PointInTime' will be used as an upper validity bound and
@@ -961,7 +960,7 @@ genCloseTx numParties = do
   cctx <- pickChainContext ctx
   let cp = ctxContestationPeriod ctx
   (startSlot, pointInTime) <- genValidityBoundsFromContestationPeriod cp
-  pure (cctx, stOpen, close cctx stOpen snapshot startSlot pointInTime, snapshot)
+  pure (cctx, stOpen, close cctx undefined undefined (undefined stOpen) snapshot startSlot pointInTime, snapshot)
 
 genContestTx :: Gen (HydraContext, PointInTime, ClosedState, Tx)
 genContestTx = do
@@ -971,7 +970,7 @@ genContestTx = do
   cctx <- pickChainContext ctx
   let cp = Hydra.Chain.Direct.State.contestationPeriod cctx
   (startSlot, closePointInTime) <- genValidityBoundsFromContestationPeriod cp
-  let txClose = close cctx stOpen confirmed startSlot closePointInTime
+  let txClose = close cctx undefined undefined (undefined stOpen) confirmed startSlot closePointInTime
   let stClosed = snd $ fromJust $ observeClose stOpen txClose
   utxo <- arbitrary
   contestSnapshot <- genConfirmedSnapshot (succ $ number $ getSnapshot confirmed) utxo (ctxHydraSigningKeys ctx)
@@ -1027,7 +1026,7 @@ genStClosed ctx utxo = do
   cctx <- pickChainContext ctx
   let cp = Hydra.Chain.Direct.State.contestationPeriod cctx
   (startSlot, pointInTime) <- genValidityBoundsFromContestationPeriod cp
-  let txClose = close cctx stOpen snapshot startSlot pointInTime
+  let txClose = close cctx undefined undefined (undefined stOpen) snapshot startSlot pointInTime
   pure (sn, toFanout, snd . fromJust $ observeClose stOpen txClose)
 
 -- ** Danger zone

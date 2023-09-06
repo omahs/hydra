@@ -542,14 +542,23 @@ onOpenNetworkAckSn Environment{party} openState otherParty snapshotSignature sn 
 --
 -- __Transition__: 'OpenState' → 'OpenState'
 onOpenClientClose ::
+  Environment ->
   OpenState tx ->
   Outcome tx
-onOpenClientClose st =
-  Effects [OnChainEffect{postChainTx = CloseTx confirmedSnapshot}]
+onOpenClientClose env st =
+  Effects [OnChainEffect{postChainTx = CloseTx{headId, headParameters, confirmedSnapshot}}]
  where
   CoordinatedHeadState{confirmedSnapshot} = coordinatedHeadState
 
-  OpenState{coordinatedHeadState} = st
+  headParameters =
+    HeadParameters
+      { contestationPeriod
+      , parties = party : otherParties
+      }
+
+  Environment{party, otherParties, contestationPeriod} = env
+
+  OpenState{headId, coordinatedHeadState} = st
 
 -- | Observe a close transaction. If the closed snapshot number is smaller than
 -- our last confirmed, we post a contest transaction. Also, we do schedule a
@@ -680,7 +689,7 @@ update env ledger st ev = case (st, ev) of
     Effects [ClientEffect . ServerOutput.GetUTxOResponse headId $ fold committed]
   -- Open
   (Open openState, ClientEvent Close) ->
-    onOpenClientClose openState
+    onOpenClientClose env openState
   (Open{}, ClientEvent (NewTx tx)) ->
     onOpenClientNewTx tx
   (Open openState, NetworkEvent ttl _ (ReqTx tx)) ->

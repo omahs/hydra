@@ -343,11 +343,12 @@ closeTx ::
   -- | Upper validity slot and UTC time to compute the contestation deadline time.
   PointInTime ->
   -- | Everything needed to spend the Head state-machine output.
-  OpenThreadOutput ->
+  (TxIn, TxOut CtxUTxO, HashableScriptData) ->
   -- | Head identifier
   HeadId ->
+  HeadParameters ->
   Tx
-closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOutput headId =
+closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadUTxO headId headParams =
   unsafeBuildTransaction $
     emptyTxBody
       & addInputs [(headInput, headWitness)]
@@ -357,11 +358,7 @@ closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOut
       & setValidityLowerBound startSlotNo
       & setValidityUpperBound endSlotNo
  where
-  OpenThreadOutput
-    { openThreadUTxO = (headInput, headOutputBefore, ScriptDatumForTxIn -> headDatumBefore)
-    , openContestationPeriod
-    , openParties
-    } = openThreadOutput
+  (headInput, headOutputBefore, ScriptDatumForTxIn -> headDatumBefore) = openThreadUTxO
 
   headWitness =
     BuildTxWith $
@@ -388,9 +385,9 @@ closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOut
       Head.Closed
         { snapshotNumber
         , utxoHash = toBuiltin utxoHashBytes
-        , parties = openParties
+        , parties = partyToChain <$> parties
         , contestationDeadline
-        , contestationPeriod = openContestationPeriod
+        , contestationPeriod = ContestationPeriod.toChain contestationPeriod
         , headId = headIdToCurrencySymbol headId
         , contesters = []
         }
@@ -408,7 +405,9 @@ closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOut
     CloseWithConfirmedSnapshot{signatures = s} -> toPlutusSignatures s
 
   contestationDeadline =
-    addContestationPeriod (posixFromUTCTime utcTime) openContestationPeriod
+    addContestationPeriod (posixFromUTCTime utcTime) (ContestationPeriod.toChain contestationPeriod)
+
+  HeadParameters{parties, contestationPeriod} = headParams
 
 -- XXX: This function is VERY similar to the 'closeTx' function (only notable
 -- difference being the redeemer, which is in itself also the same structure as

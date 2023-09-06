@@ -70,7 +70,7 @@ data PostChainTx tx
   = InitTx {headParameters :: HeadParameters}
   | AbortTx {headId :: HeadId, utxo :: UTxOType tx}
   | CollectComTx {headId :: HeadId, headParameters :: HeadParameters, utxo :: UTxOType tx}
-  | CloseTx {confirmedSnapshot :: ConfirmedSnapshot tx}
+  | CloseTx {headId :: HeadId, headParameters :: HeadParameters, confirmedSnapshot :: ConfirmedSnapshot tx}
   | ContestTx {confirmedSnapshot :: ConfirmedSnapshot tx}
   | FanoutTx {utxo :: UTxOType tx, contestationDeadline :: UTCTime}
   deriving stock (Generic)

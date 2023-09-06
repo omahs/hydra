@@ -335,10 +335,10 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
     -- that both states are consistent.
     (CollectComTx{headId, headParameters}, _) ->
       pure $ collect ctx headId headParameters spendableUTxO
-    (CloseTx{confirmedSnapshot}, Open st) -> do
+    (CloseTx{headId, headParameters, confirmedSnapshot}, Open st) -> do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
-      pure (close ctx st confirmedSnapshot currentSlot upperBound)
+      pure (close ctx headId headParameters spendableUTxO confirmedSnapshot currentSlot upperBound)
     (ContestTx{confirmedSnapshot}, Closed st) -> do
       (_, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
