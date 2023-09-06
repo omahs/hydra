@@ -57,6 +57,7 @@ import Hydra.Chain (
   ChainStateType,
   HeadId (..),
   HeadParameters (..),
+  HeadSeed,
   IsChainState (..),
   OnChainTx (..),
   PostTxError (..),
@@ -85,6 +86,7 @@ import Hydra.Chain.Direct.Tx (
   OpenThreadOutput (..),
   ResolvedTx (ResolvedTx, inputUTxO),
   SeedTxIn (..),
+  SpendableUTxO,
   UTxOHash (UTxOHash),
   UTxOWithScript,
   abortTx,
@@ -320,13 +322,15 @@ initialize ctx =
 -- payment keys. For a variant which supports committing scripts, see `commit'`.
 commit ::
   ChainContext ->
-  SeedTxIn ->
+  HeadSeed ->
   HeadId ->
+  -- | UTxO containing the outputs needed to spend.
   UTxO ->
+  -- | UTxO to commit.
   UTxO' (TxOut CtxUTxO) ->
   Either (PostTxError Tx) Tx
-commit ctx seedTxIn headId knownUTxO utxoToCommit =
-  commit' ctx seedTxIn headId knownUTxO $ utxoToCommit <&> (,KeyWitness KeyWitnessForSpending)
+commit ctx seed headId knownUTxO utxoToCommit =
+  commit' ctx seed headId knownUTxO $ utxoToCommit <&> (,KeyWitness KeyWitnessForSpending)
 
 -- | Construct a commit transaction base on the 'InitialState' and some
 -- arbitrary UTxOs to commit.
@@ -334,12 +338,14 @@ commit ctx seedTxIn headId knownUTxO utxoToCommit =
 -- NOTE: A simpler variant only supporting pubkey outputs is 'commit'.
 commit' ::
   ChainContext ->
-  SeedTxIn ->
+  HeadSeed ->
   HeadId ->
   UTxO ->
   UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
   Either (PostTxError Tx) Tx
-commit' ctx seedTxIn headId knownUTxO utxoToCommit = do
+commit' ctx seed headId knownUTxO utxoToCommit = do
+  -- FIXME: extract cardano-specific SeedTxIn from HeadSeed
+  let seedTxIn = undefined seed
   case ownInitial ctx seedTxIn knownUTxO of
     Nothing ->
       Left (CannotFindOwnInitial{knownUTxO})
@@ -401,15 +407,21 @@ rejectMoreThanMainnetLimit network u = do
 abort ::
   HasCallStack =>
   ChainContext ->
-  InitialState ->
+  HeadSeed ->
+  HeadId ->
+  -- | Spendable UTxO containing the outputs needed.
+  SpendableUTxO ->
   -- | Committed UTxOs to reimburse.
   UTxO ->
   Tx
-abort ctx st committedUTxO = do
-  let InitialThreadOutput{initialThreadUTxO = (i, o, dat)} = initialThreadOutput
-      initials = Map.fromList $ map tripleToPair initialInitials
-      commits = Map.fromList $ map tripleToPair initialCommits
-   in case abortTx committedUTxO scriptRegistry ownVerificationKey (i, o, dat) headTokenScript initials commits of
+abort ctx seed headId spendableUTxO committedUTxO = do
+  -- FIXME: extract cardano-specific SeedTxIn from HeadSeed
+  let seedTxIn = undefined seed
+  -- FIXME: find the following in the spendableUTxO using headId
+  let initialThreadUTxO = undefined headId spendableUTxO
+      initials = undefined headId spendableUTxO
+      commits = undefined headId spendableUTxO
+   in case abortTx committedUTxO scriptRegistry ownVerificationKey seedTxIn initialThreadUTxO initials commits of
         Left OverlappingInputs ->
           -- FIXME: This is a "should not happen" error. We should try to fix
           -- the arguments of abortTx to make it impossible of having
@@ -418,18 +430,7 @@ abort ctx st committedUTxO = do
         Right tx ->
           tx
  where
-  headTokenScript = mkHeadTokenScript seedTxIn
-
   ChainContext{ownVerificationKey, scriptRegistry} = ctx
-
-  InitialState
-    { initialThreadOutput
-    , initialInitials
-    , initialCommits
-    , seedTxIn
-    } = st
-
-  tripleToPair (a, b, c) = (a, (b, c))
 
 -- | Construct a collect transaction based on the 'InitialState'. This will know
 -- collect all the committed outputs.

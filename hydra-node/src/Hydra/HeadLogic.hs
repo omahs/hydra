@@ -186,9 +186,9 @@ onInitialClientAbort ::
   InitialState tx ->
   Outcome tx
 onInitialClientAbort st =
-  Effects [OnChainEffect{postChainTx = AbortTx{utxo = fold committed}}]
+  Effects [OnChainEffect{postChainTx = AbortTx{headId, utxo = fold committed}}]
  where
-  InitialState{committed} = st
+  InitialState{headId, committed} = st
 
 -- | Observe an abort transaction by switching the state and notifying clients
 -- about it.

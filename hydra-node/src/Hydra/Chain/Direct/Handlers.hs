@@ -312,7 +312,9 @@ prepareTxToPost ::
   ChainStateType Tx ->
   PostChainTx Tx ->
   STM m Tx
-prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx =
+prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
+  -- FIXME: make chainState only a SpendableUTxO
+  let spendableUTxO = undefined chainState
   case (tx, chainState) of
     (InitTx params, Idle) ->
       getSeedInput wallet >>= \case
@@ -320,8 +322,10 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx =
           pure $ initialize ctx params seedInput
         Nothing ->
           throwIO (NoSeedInput @Tx)
-    (AbortTx{utxo}, Initial st) ->
-      pure $ abort ctx st utxo
+    (AbortTx{headId, utxo}, _) -> do
+      -- FIXME: put HeadSeed into PostChainTx and/or merge with headId
+      let headSeed = undefined
+      pure $ abort ctx headSeed headId spendableUTxO utxo
     -- TODO: We do not rely on the utxo from the collect com tx here because the
     -- chain head-state is already tracking UTXO entries locked by commit scripts,
     -- and thus, can re-construct the committed UTXO for the collectComTx from

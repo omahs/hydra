@@ -27,6 +27,7 @@ import Hydra.ContestationPeriod (ContestationPeriod, fromChain, toChain)
 import qualified Hydra.Contract.Commit as Commit
 import qualified Hydra.Contract.Head as Head
 import qualified Hydra.Contract.HeadState as Head
+import Hydra.Contract.HeadTokens (mkHeadTokenScript)
 import qualified Hydra.Contract.HeadTokens as HeadTokens
 import qualified Hydra.Contract.Initial as Initial
 import Hydra.Contract.MintAction (MintAction (Burn, Mint))
@@ -538,10 +539,10 @@ abortTx ::
   ScriptRegistry ->
   -- | Party who's authorizing this transaction
   VerificationKey PaymentKey ->
+  -- | Seed for the minting policy to be used.
+  TxIn ->
   -- | Everything needed to spend the Head state-machine output.
   (TxIn, TxOut CtxUTxO, HashableScriptData) ->
-  -- | Script for monetary policy to burn tokens
-  PlutusScript ->
   -- | Data needed to spend the initial output sent to each party to the Head.
   -- Should contain the PT and is locked by initial script.
   Map TxIn (TxOut CtxUTxO, HashableScriptData) ->
@@ -549,7 +550,7 @@ abortTx ::
   -- Should contain the PT and is locked by commit script.
   Map TxIn (TxOut CtxUTxO, HashableScriptData) ->
   Either AbortTxError Tx
-abortTx committedUTxO scriptRegistry vk (headInput, initialHeadOutput, ScriptDatumForTxIn -> headDatumBefore) headTokenScript initialsToAbort commitsToAbort
+abortTx committedUTxO scriptRegistry vk seedTxIn (headInput, initialHeadOutput, ScriptDatumForTxIn -> headDatumBefore) initialsToAbort commitsToAbort
   | isJust (lookup headInput initialsToAbort) =
       Left OverlappingInputs
   | otherwise =
@@ -572,6 +573,8 @@ abortTx committedUTxO scriptRegistry vk (headInput, initialHeadOutput, ScriptDat
     fromPlutusScript @PlutusScriptV2 Head.validatorScript
   headRedeemer =
     toScriptData Head.Abort
+
+  headTokenScript = mkHeadTokenScript seedTxIn
 
   initialInputs = mkAbortInitial <$> Map.toList initialsToAbort
 

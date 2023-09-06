@@ -68,7 +68,7 @@ instance Arbitrary HeadParameters where
 -- construct corresponding Head protocol transactions.
 data PostChainTx tx
   = InitTx {headParameters :: HeadParameters}
-  | AbortTx {utxo :: UTxOType tx}
+  | AbortTx {headId :: HeadId, utxo :: UTxOType tx}
   | CollectComTx {utxo :: UTxOType tx}
   | CloseTx {confirmedSnapshot :: ConfirmedSnapshot tx}
   | ContestTx {confirmedSnapshot :: ConfirmedSnapshot tx}
