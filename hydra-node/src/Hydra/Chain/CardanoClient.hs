@@ -234,7 +234,7 @@ queryProtocolParameters networkId socket queryPoint = do
 -- | Query 'GenesisParameters' at a given point.
 --
 -- Throws at least 'QueryException' if query fails.
-queryGenesisParameters :: NetworkId -> SocketPath -> QueryPoint -> IO GenesisParameters
+queryGenesisParameters :: NetworkId -> SocketPath -> QueryPoint -> IO (GenesisParameters era)
 queryGenesisParameters networkId socket queryPoint =
   let query =
         QueryInEra

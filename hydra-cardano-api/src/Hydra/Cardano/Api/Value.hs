@@ -20,7 +20,7 @@ import qualified PlutusLedgerApi.V2 as Plutus
 -- unsatisfactory API because it works across multiple era.
 -- XXX: Check if this is still true ^^^ and use it if not.
 minUTxOValue ::
-  BundledProtocolParameters Era ->
+  LedgerProtocolParameters Era ->
   TxOut CtxTx Era ->
   Value
 minUTxOValue bundledParams (TxOut addr val dat ref) =
@@ -29,7 +29,7 @@ minUTxOValue bundledParams (TxOut addr val dat ref) =
       ledgerPparams
       (toShelleyTxOut shelleyBasedEra (toUTxOContext out'))
  where
-  BundleAsShelleyBasedProtocolParameters _ _ ledgerPparams = bundledParams
+  LedgerProtocolParameters ledgerPparams = bundledParams
   out' =
     TxOut
       addr

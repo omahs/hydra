@@ -6,6 +6,7 @@ import Hydra.Prelude
 
 import Data.Default (def)
 import qualified Data.Map as Map
+import Hydra.Cardano.Api.Prelude (LedgerProtocolParameters(LedgerProtocolParameters))
 
 -- * Executing
 
@@ -65,14 +66,14 @@ emptyTxBody =
     TxMetadataNone
     TxAuxScriptsNone
     TxExtraKeyWitnessesNone
-    (BuildTxWith $ Just $ fromLedgerPParams ShelleyBasedEraBabbage def)
+    (BuildTxWith $ Just (LedgerProtocolParameters def))
     TxWithdrawalsNone
     TxCertificatesNone
     TxUpdateProposalNone
     TxMintValueNone
     TxScriptValidityNone
-    TxGovernanceActionsNone
-    TxVotesNone
+    (Just $ _)
+    (Just $ _)
 
 -- | Add new inputs to an ongoing builder.
 addInputs :: TxIns BuildTx -> TxBodyContent BuildTx -> TxBodyContent BuildTx

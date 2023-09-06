@@ -99,7 +99,7 @@ import Cardano.Api.Shelley as X (
   toAlonzoPrices,
   toConsensusPointInMode,
   toPlutusData,
-  toShelleyNetwork,
+  toShelleyNetwork, VotingProcedures,
  )
 import Cardano.Api.UTxO (
   UTxO,
@@ -157,6 +157,7 @@ import qualified Cardano.Ledger.Keys.Bootstrap as Ledger
 import qualified Cardano.Ledger.Keys.WitVKey as Ledger
 import Data.ByteString.Short (ShortByteString)
 import Prelude
+import Cardano.Api.Shelley (Proposal)
 
 -- ** AddressInEra
 
@@ -208,19 +209,18 @@ pattern BalancedTxBody{balancedTxBodyContent, balancedTxBody, balancedTxChangeOu
     BalancedTxBody =
       Cardano.Api.BalancedTxBody
 
--- ** BundledProtocolParameters
+-- ** LedgerProtocolParameters
 
-type BundledProtocolParameters = Cardano.Api.BundledProtocolParameters Era
+type LedgerProtocolParameters = LedgerProtocolParameters Era
 
 pattern BundleAsShelleyBasedProtocolParameters ::
-  ProtocolParameters ->
   Ledger.PParams LedgerEra ->
-  BundledProtocolParameters
-pattern BundleAsShelleyBasedProtocolParameters{shelleyPParams, ledgerParams} <-
-  Cardano.Api.Shelley.BundleAsShelleyBasedProtocolParameters _ shelleyPParams ledgerParams
+  LedgerProtocolParameters
+pattern BundleAsShelleyBasedProtocolParameters{ledgerParams} <-
+  Cardano.Api.Shelley.LedgerProtocolParameters ledgerParams
   where
     BundleAsShelleyBasedProtocolParameters =
-      Cardano.Api.BundleAsShelleyBasedProtocolParameters ShelleyBasedEraBabbage
+      Cardano.Api.Shelley.LedgerProtocolParameters
 
 -- ** KeyWitness
 
@@ -396,14 +396,14 @@ pattern TxBodyContent ::
   TxMetadataInEra ->
   TxAuxScripts ->
   TxExtraKeyWitnesses ->
-  BuildTxWith build (Maybe ProtocolParameters) ->
+  BuildTxWith build (Maybe (Cardano.Api.Shelley.LedgerProtocolParameters Era)) ->
   TxWithdrawals build Era ->
   TxCertificates build Era ->
   TxUpdateProposal Era ->
   TxMintValue build ->
   TxScriptValidity ->
-  TxGovernanceActions Era ->
-  TxVotes Era ->
+  Maybe (Featured ConwayEraOnwards Era [Proposal Era]) ->
+  Maybe (Featured ConwayEraOnwards Era (VotingProcedures Era)) ->
   TxBodyContent build
 pattern TxBodyContent
   { txIns
@@ -423,8 +423,8 @@ pattern TxBodyContent
   , txUpdateProposal
   , txMintValue
   , txScriptValidity
-  , txGovernanceActions
-  , txVotes
+  , txProposals
+  , txVotingProcedures
   } <-
   Cardano.Api.TxBodyContent
     txIns
@@ -444,8 +444,8 @@ pattern TxBodyContent
     txUpdateProposal
     txMintValue
     txScriptValidity
-    txGovernanceActions
-    txVotes
+    txProposals
+    txVotingProcedures
   where
     TxBodyContent = Cardano.Api.TxBodyContent
 

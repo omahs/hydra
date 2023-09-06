@@ -57,7 +57,6 @@ import Hydra.Cardano.Api (
   setTxProtocolParams,
   toLedgerPParams,
   toScriptData,
-  unbundleProtocolParams,
   pattern BundleAsShelleyBasedProtocolParameters,
   pattern ReferenceScriptNone,
   pattern ScriptWitness,
