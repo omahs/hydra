@@ -54,11 +54,12 @@ import Hydra.Chain.Direct.State (
   contestationPeriod,
   fanout,
   getKnownUTxO,
+  getSpendableUTxO,
   initialize,
   observeSomeTx,
  )
 import Hydra.Chain.Direct.TimeHandle (TimeHandle (..))
-import Hydra.Chain.Direct.Tx (ResolvedTx, fromResolvedTx)
+import Hydra.Chain.Direct.Tx (ResolvedTx, SpendableUTxO, fromResolvedTx)
 import Hydra.Chain.Direct.Wallet (
   ErrCoverFee (..),
   TinyWallet (..),
@@ -141,23 +142,13 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
         chainState <- atomically getLatest
         traceWith tracer $ ToPost{toPost = tx}
         timeHandle <- queryTimeHandle
-        vtx <-
-          -- FIXME (MB): cardano keys should really not be here (as this
-          -- point they are in the 'chainState' stored in the 'ChainContext')
-          -- . They are only required for the init transaction and ought to
-          -- come from the _client_ and be part of the init request
-          -- altogether. This goes in the direction of 'dynamic heads' where
-          -- participants aren't known upfront but provided via the API.
-          -- Ultimately, an init request from a client would contain all the
-          -- details needed to establish connection to the other peers and
-          -- to bootstrap the init transaction. For now, we bear with it and
-          -- keep the static keys in context.
-          atomically (prepareTxToPost timeHandle wallet ctx chainState tx)
-            >>= finalizeTx wallet ctx (getKnownUTxO chainState)
-        submitTx vtx
+        atomically (prepareTxToPost timeHandle wallet ctx (getSpendableUTxO chainState) tx)
+          >>= finalizeTx wallet ctx (getKnownUTxO chainState)
+          >>= submitTx
     , -- Handle that creates a draft commit tx using the user utxo.
       -- Possible errors are handled at the api server level.
       draftCommitTx = \seed headId utxoToCommit -> do
+        -- FIXME: convert from generic seed to chain-specific TxIn seed
         let seedTxIn = undefined seed
         knownUTxO <- getKnownUTxO <$> atomically getLatest
         walletUtxos <- atomically getUTxO
@@ -292,13 +283,15 @@ chainSyncHandler tracer callback getTimeHandle ctx localChainState =
 
   maybeObserveSomeTx :: ChainPoint -> ResolvedTx -> m (Maybe (ChainEvent Tx))
   maybeObserveSomeTx point tx = atomically $ do
-    ChainStateAt{chainState} <- getLatest
-    case observeSomeTx ctx chainState tx of
+    case observeSomeTx ctx tx of
       Nothing -> pure Nothing
-      Just (observedTx, cs') -> do
+      Just observedTx -> do
+        -- TODO: this can be a single modify
+        csa@ChainStateAt{spendableUTxO} <- getLatest
         let newChainState =
               ChainStateAt
-                { chainState = cs'
+                { -- FIXME: do something better than just mappend here
+                  spendableUTxO = spendableUTxO <> getSpendableUTxO tx
                 , recordedAt = Just point
                 }
         pushNew newChainState
@@ -309,20 +302,18 @@ prepareTxToPost ::
   TimeHandle ->
   TinyWallet m ->
   ChainContext ->
-  ChainStateType Tx ->
+  SpendableUTxO ->
   PostChainTx Tx ->
   STM m Tx
-prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
-  -- FIXME: make chainState only a SpendableUTxO
-  let spendableUTxO = undefined chainState
-  case (tx, chainState) of
-    (InitTx params, Idle) ->
+prepareTxToPost timeHandle wallet ctx spendableUTxO tx = do
+  case tx of
+    InitTx params ->
       getSeedInput wallet >>= \case
         Just seedInput ->
           pure $ initialize ctx params seedInput
         Nothing ->
           throwIO (NoSeedInput @Tx)
-    (AbortTx{headId, utxo}, _) -> do
+    AbortTx{headId, utxo} -> do
       -- FIXME: put HeadSeed into PostChainTx and/or merge with headId
       let headSeed = undefined
       pure $ abort ctx headSeed headId spendableUTxO utxo
@@ -333,24 +324,23 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
     --
     -- Perhaps we do want however to perform some kind of sanity check to ensure
     -- that both states are consistent.
-    (CollectComTx{headId, headParameters}, _) ->
+    CollectComTx{headId, headParameters} ->
       pure $ collect ctx headId headParameters spendableUTxO
-    (CloseTx{headId, headParameters, confirmedSnapshot}, _) -> do
+    CloseTx{headId, headParameters, confirmedSnapshot} -> do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
       pure (close ctx headId headParameters spendableUTxO confirmedSnapshot currentSlot upperBound)
-    (ContestTx{headId, headParameters, confirmedSnapshot}, _) -> do
+    ContestTx{headId, headParameters, confirmedSnapshot} -> do
       -- FIXME: keep contesters in head logic (needs a noion of abstract on-chain identity)
       let contesters = undefined
       (_, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
       pure (contest ctx headId headParameters spendableUTxO confirmedSnapshot upperBound contesters)
-    (FanoutTx{headId, utxo, contestationDeadline}, _) -> do
+    FanoutTx{headId, utxo, contestationDeadline} -> do
       -- FIXME: put HeadSeed into PostChainTx and/or merge with headId
       let headSeed = undefined
       deadlineSlot <- throwLeft $ slotFromUTCTime contestationDeadline
       pure (fanout ctx headSeed headId spendableUTxO utxo deadlineSlot)
-    (_, _) -> throwIO $ InvalidStateToPost{txTried = tx, chainState = cst}
  where
   -- XXX: Might want a dedicated exception type here
   throwLeft = either (throwSTM . userError . toString) pure

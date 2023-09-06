@@ -131,19 +131,28 @@ import Test.QuickCheck.Modifiers (Positive (Positive))
 class HasKnownUTxO a where
   getKnownUTxO :: a -> UTxO
 
+class HasSpendableUTxO a where
+  getSpendableUTxO :: a -> SpendableUTxO
+
+instance HasSpendableUTxO Tx where
+  getSpendableUTxO = undefined -- TODO: can easily be defined
+
+instance HasSpendableUTxO ResolvedTx where
+  getSpendableUTxO = getSpendableUTxO . fromResolvedTx
+
 -- * States & transitions
 
 -- | The chain state used by the Hydra.Chain.Direct implementation. It records
 -- the actual 'ChainState' paired with a 'ChainSlot' (used to know up to which
 -- point to rewind on rollbacks).
 data ChainStateAt = ChainStateAt
-  { chainState :: ChainState
+  { spendableUTxO :: SpendableUTxO
   , recordedAt :: Maybe ChainPoint
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 instance Arbitrary ChainStateAt where
-  arbitrary = genericArbitrary
+  arbitrary = undefined -- TODO: can be defined
 
 instance IsChainState Tx where
   type ChainStateType Tx = ChainStateAt
@@ -152,7 +161,10 @@ instance IsChainState Tx where
     maybe (ChainSlot 0) chainSlotFromPoint recordedAt
 
 instance HasKnownUTxO ChainStateAt where
-  getKnownUTxO ChainStateAt{chainState} = getKnownUTxO chainState
+  getKnownUTxO ChainStateAt{spendableUTxO} = fst <$> spendableUTxO
+
+instance HasSpendableUTxO ChainStateAt where
+  getSpendableUTxO ChainStateAt{spendableUTxO} = spendableUTxO
 
 -- | Get a generic 'ChainSlot' from a Cardano 'ChainPoint'. Slot 0 is used for
 -- the genesis point.
@@ -200,7 +212,7 @@ instance HasKnownUTxO ChainState where
 initialChainState :: ChainStateType Tx
 initialChainState =
   ChainStateAt
-    { chainState = Idle
+    { spendableUTxO = mempty
     , recordedAt = Nothing
     }
 
@@ -535,18 +547,15 @@ fanout ctx seed headId spendableUTxO utxoToFanout deadlineSlotNo = do
 -- | Observe a transition without knowing the starting or ending state. This
 -- function should try to observe all relevant transitions given some
 -- 'ChainState'.
-observeSomeTx :: ChainContext -> ChainState -> ResolvedTx -> Maybe (OnChainTx Tx, ChainState)
-observeSomeTx ctx cst rtx = case cst of
-  Idle ->
-    second Initial <$> hush (observeInit ctx tx)
-  Initial st ->
-    second Initial <$> observeCommit ctx st tx
-      <|> (,Idle) <$> observeAbort rtx
-      <|> second Open <$> observeCollect st tx
-  Open st -> second Closed <$> observeClose st tx
-  Closed st ->
-    second Closed <$> observeContest st tx
-      <|> (,Idle) <$> observeFanout rtx
+observeSomeTx :: ChainContext -> ResolvedTx -> Maybe (OnChainTx Tx)
+observeSomeTx ctx rtx =
+  fst <$> hush (observeInit ctx tx)
+    <|> fst <$> observeCommit ctx undefined tx
+    <|> observeAbort rtx
+    <|> fst <$> observeCollect undefined tx
+    <|> fst <$> observeClose undefined tx
+    <|> fst <$> observeContest undefined tx
+    <|> observeFanout rtx
  where
   tx = fromResolvedTx rtx
 
