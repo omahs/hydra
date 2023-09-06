@@ -147,6 +147,7 @@ onIdleChainInitTx newChainState parties contestationPeriod headId =
 -- __Transition__: 'InitialState' → 'InitialState'
 onInitialChainCommitTx ::
   Monoid (UTxOType tx) =>
+  Environment ->
   InitialState tx ->
   -- | New chain state
   ChainStateType tx ->
@@ -155,7 +156,7 @@ onInitialChainCommitTx ::
   -- | Committed UTxO
   UTxOType tx ->
   Outcome tx
-onInitialChainCommitTx st newChainState pt utxo =
+onInitialChainCommitTx env st newChainState pt utxo =
   StateChanged CommittedUTxO{party = pt, committedUTxO = utxo, chainState = newChainState}
     <> Effects
       ( notifyClient
@@ -168,12 +169,20 @@ onInitialChainCommitTx st newChainState pt utxo =
 
   postCollectCom =
     OnChainEffect
-      { postChainTx = CollectComTx $ fold newCommitted
+      { postChainTx = CollectComTx{headId, headParameters, utxo = fold newCommitted}
       }
 
   canCollectCom = null remainingParties
 
   remainingParties = Set.delete pt pendingCommits
+
+  headParameters =
+    HeadParameters
+      { contestationPeriod
+      , parties = party : otherParties
+      }
+
+  Environment{party, otherParties, contestationPeriod} = env
 
   InitialState{pendingCommits, committed, headId} = st
 
@@ -660,7 +669,7 @@ update env ledger st ev = case (st, ev) of
   (Idle _, OnChainEvent Observation{observedTx = OnInitTx{headId, contestationPeriod, parties}, newChainState}) ->
     onIdleChainInitTx newChainState parties contestationPeriod headId
   (Initial initialState, OnChainEvent Observation{observedTx = OnCommitTx{party = pt, committed = utxo}, newChainState}) ->
-    onInitialChainCommitTx initialState newChainState pt utxo
+    onInitialChainCommitTx env initialState newChainState pt utxo
   (Initial initialState, ClientEvent Abort) ->
     onInitialClientAbort initialState
   (Initial initialState, OnChainEvent Observation{observedTx = OnCollectComTx{}, newChainState}) ->

@@ -43,7 +43,7 @@ import Hydra.Chain (
  )
 import Hydra.Chain.Direct.State (
   ChainContext,
-  ChainState (Closed, Idle, Initial, Open),
+  ChainState (Closed, Idle, Open),
   ChainStateAt (..),
   abort,
   chainSlotFromPoint,
@@ -333,8 +333,8 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
     --
     -- Perhaps we do want however to perform some kind of sanity check to ensure
     -- that both states are consistent.
-    (CollectComTx{}, Initial st) ->
-      pure $ collect ctx st
+    (CollectComTx{headId, headParameters}, _) ->
+      pure $ collect ctx headId headParameters spendableUTxO
     (CloseTx{confirmedSnapshot}, Open st) -> do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime

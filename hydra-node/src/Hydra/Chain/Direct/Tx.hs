@@ -24,6 +24,7 @@ import Hydra.Chain (HeadId (..), HeadParameters (..))
 import Hydra.Chain.Direct.ScriptRegistry (ScriptRegistry (..))
 import Hydra.Chain.Direct.TimeHandle (PointInTime)
 import Hydra.ContestationPeriod (ContestationPeriod, fromChain, toChain)
+import qualified Hydra.ContestationPeriod as ContestationPeriod
 import qualified Hydra.Contract.Commit as Commit
 import qualified Hydra.Contract.Head as Head
 import qualified Hydra.Contract.HeadState as Head
@@ -246,15 +247,16 @@ collectComTx ::
   ScriptRegistry ->
   -- | Party who's authorizing this transaction
   VerificationKey PaymentKey ->
+  -- | Head id
+  HeadId ->
+  HeadParameters ->
   -- | Everything needed to spend the Head state-machine output.
-  InitialThreadOutput ->
+  (TxIn, TxOut CtxUTxO, HashableScriptData) ->
   -- | Data needed to spend the commit output produced by each party.
   -- Should contain the PT and is locked by @ν_commit@ script.
   Map TxIn (TxOut CtxUTxO, HashableScriptData) ->
-  -- | Head id
-  HeadId ->
   Tx
-collectComTx networkId scriptRegistry vk initialThreadOutput commits headId =
+collectComTx networkId scriptRegistry vk headId headParams initialThreadUTxO commits =
   unsafeBuildTransaction $
     emptyTxBody
       & addInputs ((headInput, headWitness) : (mkCommit <$> Map.toList commits))
@@ -262,12 +264,8 @@ collectComTx networkId scriptRegistry vk initialThreadOutput commits headId =
       & addOutputs [headOutput]
       & addExtraRequiredSigners [verificationKeyHash vk]
  where
-  InitialThreadOutput
-    { initialThreadUTxO =
-      (headInput, initialHeadOutput, ScriptDatumForTxIn -> headDatumBefore)
-    , initialParties
-    , initialContestationPeriod
-    } = initialThreadOutput
+  (headInput, initialHeadOutput, ScriptDatumForTxIn -> headDatumBefore) = initialThreadUTxO
+
   headWitness =
     BuildTxWith $
       ScriptWitness scriptWitnessInCtx $
@@ -284,11 +282,13 @@ collectComTx networkId scriptRegistry vk initialThreadOutput commits headId =
   headDatumAfter =
     mkTxOutDatum
       Head.Open
-        { Head.parties = initialParties
+        { Head.parties = partyToChain <$> parties
         , utxoHash
-        , contestationPeriod = initialContestationPeriod
+        , contestationPeriod = ContestationPeriod.toChain contestationPeriod
         , headId = headIdToCurrencySymbol headId
         }
+
+  HeadParameters{parties, contestationPeriod} = headParams
 
   extractCommits d =
     case fromScriptData d of

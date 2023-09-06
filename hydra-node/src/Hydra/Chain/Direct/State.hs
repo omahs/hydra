@@ -436,21 +436,18 @@ abort ctx seed headId spendableUTxO committedUTxO = do
 -- collect all the committed outputs.
 collect ::
   ChainContext ->
-  InitialState ->
+  HeadId ->
+  HeadParameters ->
+  -- | Spendable UTxO containing the outputs needed.
+  SpendableUTxO ->
   Tx
-collect ctx st = do
-  let commits = Map.fromList $ fmap tripleToPair initialCommits
-   in collectComTx networkId scriptRegistry ownVerificationKey initialThreadOutput commits headId
+collect ctx headId headParams spendableUTxO = do
+  -- FIXME: find the following in the spendableUTxO using headId
+  let commits = undefined headId spendableUTxO
+  let spendableHeadOutput = undefined headId spendableUTxO
+  collectComTx networkId scriptRegistry ownVerificationKey headId headParams spendableHeadOutput commits
  where
   ChainContext{networkId, ownVerificationKey, scriptRegistry} = ctx
-
-  InitialState
-    { initialThreadOutput
-    , initialCommits
-    , headId
-    } = st
-
-  tripleToPair (a, b, c) = (a, (b, c))
 
 -- | Construct a close transaction based on the 'OpenState' and a confirmed
 -- snapshot.
@@ -954,7 +951,7 @@ genCollectComTx = do
   commits <- genCommits ctx txInit
   cctx <- pickChainContext ctx
   let (committedUTxO, stInitialized) = unsafeObserveInitAndCommits cctx txInit commits
-  pure (cctx, committedUTxO, stInitialized, collect cctx stInitialized)
+  pure (cctx, committedUTxO, stInitialized, collect cctx undefined undefined (undefined stInitialized))
 
 genCloseTx :: Int -> Gen (ChainContext, OpenState, Tx, ConfirmedSnapshot Tx)
 genCloseTx numParties = do
@@ -1003,7 +1000,7 @@ genStOpen ctx = do
   commits <- genCommits ctx txInit
   cctx <- pickChainContext ctx
   let (committed, stInitial) = unsafeObserveInitAndCommits cctx txInit commits
-  let txCollect = collect cctx stInitial
+  let txCollect = collect cctx undefined undefined (undefined stInitial)
   pure (fold committed, snd . fromJust $ observeCollect stInitial txCollect)
 
 genStClosed ::
