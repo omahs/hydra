@@ -506,10 +506,10 @@ fanoutTx ::
   UTxOWithScript ->
   -- | Contestation deadline as SlotNo, used to set lower tx validity bound.
   SlotNo ->
-  -- | Minting Policy script, made from initial seed
-  PlutusScript ->
+  -- | Seed for the minting policy to be used.
+  TxIn ->
   Tx
-fanoutTx scriptRegistry utxo (headInput, headOutput, ScriptDatumForTxIn -> headDatumBefore) deadlineSlotNo headTokenScript =
+fanoutTx scriptRegistry utxo (headInput, headOutput, ScriptDatumForTxIn -> headDatumBefore) deadlineSlotNo seedTxIn =
   unsafeBuildTransaction $
     emptyTxBody
       & addInputs [(headInput, headWitness)]
@@ -531,6 +531,8 @@ fanoutTx scriptRegistry utxo (headInput, headOutput, ScriptDatumForTxIn -> headD
 
   headTokens =
     headTokensFromValue headTokenScript (txOutValue headOutput)
+
+  headTokenScript = mkHeadTokenScript seedTxIn
 
   orderedTxOutsToFanout =
     toTxContext <$> toList utxo

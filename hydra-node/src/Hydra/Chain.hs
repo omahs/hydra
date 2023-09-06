@@ -72,7 +72,7 @@ data PostChainTx tx
   | CollectComTx {headId :: HeadId, headParameters :: HeadParameters, utxo :: UTxOType tx}
   | CloseTx {headId :: HeadId, headParameters :: HeadParameters, confirmedSnapshot :: ConfirmedSnapshot tx}
   | ContestTx {headId :: HeadId, headParameters :: HeadParameters, confirmedSnapshot :: ConfirmedSnapshot tx}
-  | FanoutTx {utxo :: UTxOType tx, contestationDeadline :: UTCTime}
+  | FanoutTx {headId :: HeadId, utxo :: UTxOType tx, contestationDeadline :: UTCTime}
   deriving stock (Generic)
 
 deriving instance IsTx tx => Eq (PostChainTx tx)

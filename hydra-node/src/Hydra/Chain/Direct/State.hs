@@ -513,21 +513,22 @@ contest ctx headId headParams spendableUTxO confirmedSnapshot pointInTime contes
 -- agreed 'UTxO' set to fan out.
 fanout ::
   ChainContext ->
-  ClosedState ->
+  HeadSeed ->
+  HeadId ->
+  -- | Spendable UTxO containing the outputs needed.
+  SpendableUTxO ->
   UTxO ->
   -- | Contestation deadline as SlotNo, used to set lower tx validity bound.
   SlotNo ->
   Tx
-fanout ctx st utxo deadlineSlotNo = do
-  fanoutTx scriptRegistry utxo (i, o, dat) deadlineSlotNo headTokenScript
+fanout ctx seed headId spendableUTxO utxoToFanout deadlineSlotNo = do
+  -- FIXME: extract cardano-specific SeedTxIn from HeadSeed
+  let seedTxIn = undefined seed
+  -- FIXME: find the following in the spendableUTxO using headId
+  let spendableHeadOutput = undefined headId spendableUTxO
+  fanoutTx scriptRegistry utxoToFanout spendableHeadOutput deadlineSlotNo seedTxIn
  where
-  headTokenScript = mkHeadTokenScript seedTxIn
-
   ChainContext{scriptRegistry} = ctx
-
-  ClosedState{closedThreadOutput, seedTxIn} = st
-
-  ClosedThreadOutput{closedThreadUTxO = (i, o, dat)} = closedThreadOutput
 
 -- * Observing Transitions
 
@@ -984,7 +985,7 @@ genFanoutTx numParties numOutputs = do
   (_, toFanout, stClosed) <- genStClosed ctx utxo
   cctx <- pickChainContext ctx
   let deadlineSlotNo = slotNoFromUTCTime (getContestationDeadline stClosed)
-  pure (ctx, stClosed, fanout cctx stClosed toFanout deadlineSlotNo)
+  pure (ctx, stClosed, fanout cctx undefined undefined (undefined stClosed) toFanout deadlineSlotNo)
 
 getContestationDeadline :: ClosedState -> UTCTime
 getContestationDeadline

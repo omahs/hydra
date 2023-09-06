@@ -335,19 +335,21 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
     -- that both states are consistent.
     (CollectComTx{headId, headParameters}, _) ->
       pure $ collect ctx headId headParameters spendableUTxO
-    (CloseTx{headId, headParameters, confirmedSnapshot}, Open st) -> do
+    (CloseTx{headId, headParameters, confirmedSnapshot}, _) -> do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
       pure (close ctx headId headParameters spendableUTxO confirmedSnapshot currentSlot upperBound)
-    (ContestTx{headId, headParameters, confirmedSnapshot}, Closed st) -> do
+    (ContestTx{headId, headParameters, confirmedSnapshot}, _) -> do
       -- FIXME: keep contesters in head logic (needs a noion of abstract on-chain identity)
       let contesters = undefined
       (_, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
       pure (contest ctx headId headParameters spendableUTxO confirmedSnapshot upperBound contesters)
-    (FanoutTx{utxo, contestationDeadline}, Closed st) -> do
+    (FanoutTx{headId, utxo, contestationDeadline}, _) -> do
+      -- FIXME: put HeadSeed into PostChainTx and/or merge with headId
+      let headSeed = undefined
       deadlineSlot <- throwLeft $ slotFromUTCTime contestationDeadline
-      pure (fanout ctx st utxo deadlineSlot)
+      pure (fanout ctx headSeed headId spendableUTxO utxo deadlineSlot)
     (_, _) -> throwIO $ InvalidStateToPost{txTried = tx, chainState = cst}
  where
   -- XXX: Might want a dedicated exception type here
