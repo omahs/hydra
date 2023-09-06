@@ -490,24 +490,24 @@ close ctx headId headParams spendableUTxO confirmedSnapshot startSlotNo pointInT
 -- needs to be before the deadline.
 contest ::
   ChainContext ->
-  ClosedState ->
+  HeadId ->
+  HeadParameters ->
+  SpendableUTxO ->
   ConfirmedSnapshot Tx ->
   PointInTime ->
+  [VerificationKey PaymentKey] ->
   Tx
-contest ctx st confirmedSnapshot pointInTime = do
-  contestTx scriptRegistry ownVerificationKey sn sigs pointInTime closedThreadOutput headId contestationPeriod
+contest ctx headId headParams spendableUTxO confirmedSnapshot pointInTime contesters = do
+  -- FIXME: find the following in the spendableUTxO using headId
+  let spendableHeadOutput = undefined headId spendableUTxO
+  contestTx scriptRegistry ownVerificationKey sn sigs pointInTime contesters spendableHeadOutput headId headParams
  where
   (sn, sigs) =
     case confirmedSnapshot of
       ConfirmedSnapshot{signatures} -> (getSnapshot confirmedSnapshot, signatures)
       _ -> (getSnapshot confirmedSnapshot, mempty)
 
-  ChainContext{contestationPeriod, ownVerificationKey, scriptRegistry} = ctx
-
-  ClosedState
-    { closedThreadOutput
-    , headId
-    } = st
+  ChainContext{ownVerificationKey, scriptRegistry} = ctx
 
 -- | Construct a fanout transaction based on the 'ClosedState' and off-chain
 -- agreed 'UTxO' set to fan out.
@@ -975,7 +975,7 @@ genContestTx = do
   utxo <- arbitrary
   contestSnapshot <- genConfirmedSnapshot (succ $ number $ getSnapshot confirmed) utxo (ctxHydraSigningKeys ctx)
   contestPointInTime <- genPointInTimeBefore (getContestationDeadline stClosed)
-  pure (ctx, closePointInTime, stClosed, contest cctx stClosed contestSnapshot contestPointInTime)
+  pure (ctx, closePointInTime, stClosed, contest cctx undefined undefined (undefined stClosed) contestSnapshot contestPointInTime undefined)
 
 genFanoutTx :: Int -> Int -> Gen (HydraContext, ClosedState, Tx)
 genFanoutTx numParties numOutputs = do

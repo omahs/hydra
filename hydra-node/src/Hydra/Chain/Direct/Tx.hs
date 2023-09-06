@@ -419,26 +419,29 @@ contestTx ::
   ScriptRegistry ->
   -- | Party who's authorizing this transaction
   VerificationKey PaymentKey ->
-  -- | Contested snapshot number (i.e. the one we contest to)
+  -- | Contested snapshot number (i.e. the one we contest with)
   Snapshot Tx ->
   -- | Multi-signature of the whole snapshot
   MultiSignature (Snapshot Tx) ->
-  -- | Current slot and posix time to be used as the contestation time.
+  -- | Current slot and posix time to be used as the contestation deadline.
   PointInTime ->
+  -- | Who contested so far
+  [VerificationKey PaymentKey] ->
   -- | Everything needed to spend the Head state-machine output.
-  ClosedThreadOutput ->
+  (TxIn, TxOut CtxUTxO, HashableScriptData) ->
   HeadId ->
-  ContestationPeriod ->
+  HeadParameters ->
   Tx
 contestTx
   scriptRegistry
   vk
   Snapshot{number, utxo}
   sig
-  (slotNo, _)
-  ClosedThreadOutput{closedThreadUTxO = (headInput, headOutputBefore, ScriptDatumForTxIn -> headDatumBefore), closedParties, closedContestationDeadline, closedContesters}
+  (slotNo, contestationDeadline)
+  contestersVKeys
+  closedThreadUTxO
   headId
-  contestationPeriod =
+  headParams =
     unsafeBuildTransaction $
       emptyTxBody
         & addInputs [(headInput, headWitness)]
@@ -465,25 +468,31 @@ contestTx
 
     contester = toPlutusKeyHash (verificationKeyHash vk)
 
+    contesters = toPlutusKeyHash . verificationKeyHash <$> contestersVKeys
+
     onChainConstestationPeriod = toChain contestationPeriod
 
     newContestationDeadline =
-      if length (contester : closedContesters) == length closedParties
-        then closedContestationDeadline
-        else addContestationPeriod closedContestationDeadline onChainConstestationPeriod
+      if length (contester : contesters) == length parties
+        then posixFromUTCTime contestationDeadline
+        else addContestationPeriod (posixFromUTCTime contestationDeadline) onChainConstestationPeriod
 
     headDatumAfter =
       mkTxOutDatum
         Head.Closed
           { snapshotNumber = toInteger number
           , utxoHash
-          , parties = closedParties
+          , parties = partyToChain <$> parties
           , contestationDeadline = newContestationDeadline
           , contestationPeriod = onChainConstestationPeriod
           , headId = headIdToCurrencySymbol headId
-          , contesters = contester : closedContesters
+          , contesters = contester : contesters
           }
     utxoHash = toBuiltin $ hashUTxO @Tx utxo
+
+    (headInput, headOutputBefore, ScriptDatumForTxIn -> headDatumBefore) = closedThreadUTxO
+
+    HeadParameters{parties, contestationPeriod} = headParams
 
 -- | Create the fanout transaction, which distributes the closed state
 -- accordingly. The head validator allows fanout only > deadline, so we need

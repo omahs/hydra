@@ -339,10 +339,12 @@ prepareTxToPost timeHandle wallet ctx cst@ChainStateAt{chainState} tx = do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
       pure (close ctx headId headParameters spendableUTxO confirmedSnapshot currentSlot upperBound)
-    (ContestTx{confirmedSnapshot}, Closed st) -> do
+    (ContestTx{headId, headParameters, confirmedSnapshot}, Closed st) -> do
+      -- FIXME: keep contesters in head logic (needs a noion of abstract on-chain identity)
+      let contesters = undefined
       (_, currentTime) <- throwLeft currentPointInTime
       upperBound <- calculateTxUpperBoundFromContestationPeriod currentTime
-      pure (contest ctx st confirmedSnapshot upperBound)
+      pure (contest ctx headId headParameters spendableUTxO confirmedSnapshot upperBound contesters)
     (FanoutTx{utxo, contestationDeadline}, Closed st) -> do
       deadlineSlot <- throwLeft $ slotFromUTCTime contestationDeadline
       pure (fanout ctx st utxo deadlineSlot)

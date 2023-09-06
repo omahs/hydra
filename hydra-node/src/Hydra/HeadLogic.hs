@@ -566,6 +566,7 @@ onOpenClientClose env st =
 --
 -- __Transition__: 'OpenState' → 'ClosedState'
 onOpenChainCloseTx ::
+  Environment ->
   OpenState tx ->
   -- | New chain state.
   ChainStateType tx ->
@@ -574,12 +575,12 @@ onOpenChainCloseTx ::
   -- | Contestation deadline.
   UTCTime ->
   Outcome tx
-onOpenChainCloseTx openState newChainState closedSnapshotNumber contestationDeadline =
+onOpenChainCloseTx env openState newChainState closedSnapshotNumber contestationDeadline =
   StateChanged HeadClosed{chainState = newChainState, contestationDeadline}
     <> Effects
       ( notifyClient
           : [ OnChainEffect
-              { postChainTx = ContestTx{confirmedSnapshot}
+              { postChainTx = ContestTx{headId, headParameters, confirmedSnapshot}
               }
             | doContest
             ]
@@ -600,19 +601,28 @@ onOpenChainCloseTx openState newChainState closedSnapshotNumber contestationDead
 
   OpenState{headId, coordinatedHeadState} = openState
 
+  headParameters =
+    HeadParameters
+      { contestationPeriod
+      , parties = party : otherParties
+      }
+
+  Environment{party, otherParties, contestationPeriod} = env
+
 -- | Observe a contest transaction. If the contested snapshot number is smaller
 -- than our last confirmed snapshot, we post a contest transaction.
 --
 -- __Transition__: 'ClosedState' → 'ClosedState'
 onClosedChainContestTx ::
+  Environment ->
   ClosedState tx ->
   SnapshotNumber ->
   Outcome tx
-onClosedChainContestTx closedState snapshotNumber
+onClosedChainContestTx env closedState snapshotNumber
   | snapshotNumber < number (getSnapshot confirmedSnapshot) =
       Effects
         [ ClientEffect ServerOutput.HeadIsContested{snapshotNumber, headId}
-        , OnChainEffect{postChainTx = ContestTx{confirmedSnapshot}}
+        , OnChainEffect{postChainTx = ContestTx{headId, headParameters, confirmedSnapshot}}
         ]
   | snapshotNumber > number (getSnapshot confirmedSnapshot) =
       -- TODO: A more recent snapshot number was succesfully contested, we will
@@ -622,6 +632,14 @@ onClosedChainContestTx closedState snapshotNumber
       Effects [ClientEffect ServerOutput.HeadIsContested{snapshotNumber, headId}]
  where
   ClosedState{confirmedSnapshot, headId} = closedState
+
+  headParameters =
+    HeadParameters
+      { contestationPeriod
+      , parties = party : otherParties
+      }
+
+  Environment{party, otherParties, contestationPeriod} = env
 
 -- | Client request to fanout leads to a fanout transaction on chain using the
 -- latest confirmed snapshot from 'ClosedState'.
@@ -704,7 +722,7 @@ update env ledger st ev = case (st, ev) of
     , OnChainEvent Observation{observedTx = OnCloseTx{headId, snapshotNumber = closedSnapshotNumber, contestationDeadline}, newChainState}
     )
       | ourHeadId == headId ->
-          onOpenChainCloseTx openState newChainState closedSnapshotNumber contestationDeadline
+          onOpenChainCloseTx env openState newChainState closedSnapshotNumber contestationDeadline
       | otherwise ->
           Error NotOurHead{ourHeadId, otherHeadId = headId}
   (Open OpenState{coordinatedHeadState = CoordinatedHeadState{confirmedSnapshot}, headId}, ClientEvent GetUTxO) ->
@@ -713,7 +731,7 @@ update env ledger st ev = case (st, ev) of
     Effects [ClientEffect . ServerOutput.GetUTxOResponse headId $ getField @"utxo" $ getSnapshot confirmedSnapshot]
   -- Closed
   (Closed closedState, OnChainEvent Observation{observedTx = OnContestTx{snapshotNumber}}) ->
-    onClosedChainContestTx closedState snapshotNumber
+    onClosedChainContestTx env closedState snapshotNumber
   (Closed ClosedState{contestationDeadline, readyToFanoutSent, headId}, OnChainEvent Tick{chainTime})
     | chainTime > contestationDeadline && not readyToFanoutSent ->
         StateChanged

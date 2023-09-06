@@ -208,6 +208,7 @@ seenSnapshotNumber = \case
 
 -- | An 'Closed' head with an current candidate 'ConfirmedSnapshot', which may
 -- be contested before the 'contestationDeadline'.
+-- FIXME: also needs to keep track of who contested already to construct contest transactions
 data ClosedState tx = ClosedState
   { parameters :: HeadParameters
   , confirmedSnapshot :: ConfirmedSnapshot tx
