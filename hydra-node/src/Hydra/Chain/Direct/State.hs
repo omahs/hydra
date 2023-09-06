@@ -544,7 +544,7 @@ observeSomeTx ctx cst rtx = case cst of
     second Initial <$> hush (observeInit ctx tx)
   Initial st ->
     second Initial <$> observeCommit ctx st tx
-      <|> (,Idle) <$> observeAbort st tx
+      <|> (,Idle) <$> observeAbort rtx
       <|> second Open <$> observeCollect st tx
   Open st -> second Closed <$> observeClose st tx
   Closed st ->
@@ -646,12 +646,10 @@ observeCollect st tx = do
 
 -- | Observe an abort transition using a 'InitialState' and 'observeAbortTx'.
 observeAbort ::
-  InitialState ->
-  Tx ->
+  ResolvedTx ->
   Maybe (OnChainTx Tx)
-observeAbort st tx = do
-  let utxo = getKnownUTxO st
-  AbortObservation <- observeAbortTx utxo tx
+observeAbort rtx = do
+  AbortObservation <- observeAbortTx (inputUTxO rtx) (fromResolvedTx rtx)
   pure OnAbortTx
 
 -- ** OpenState transitions
