@@ -56,6 +56,11 @@ import Hydra.Snapshot (Snapshot (..), SnapshotNumber, fromChainSnapshot)
 import PlutusLedgerApi.V2 (CurrencySymbol (CurrencySymbol), fromBuiltin, toBuiltin)
 import qualified PlutusLedgerApi.V2 as Plutus
 
+-- | A special transaction output reference used to seed a head, resulting in the 'HeadId'
+newtype SeedTxIn = SeedTxIn TxIn
+
+type SpendableUTxO = UTxO' (TxOut CtxUTxO, HashableScriptData)
+
 -- | Needed on-chain data to create Head transactions.
 type UTxOWithScript = (TxIn, TxOut CtxUTxO, HashableScriptData)
 

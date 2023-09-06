@@ -86,6 +86,10 @@ instance IsTx tx => Arbitrary (PostChainTx tx) where
 -- REVIEW(SN): There is a similarly named type in plutus-ledger, so we might
 -- want to rename this
 
+-- | Unique seed per Hydra Head.
+-- TODO: conceptually overlaps with HeadId
+newtype HeadSeed = HeadSeed ByteString
+
 -- | Uniquely identifies a Hydra Head.
 newtype HeadId = HeadId ByteString
   deriving (Show, Eq, Ord, Generic)
@@ -238,6 +242,8 @@ data Chain tx m = Chain
   -- Does at least throw 'PostTxError'.
   , draftCommitTx ::
       (MonadThrow m) =>
+      HeadSeed ->
+      HeadId ->
       UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
       m (Either (PostTxError Tx) Tx)
   -- ^ Create a commit transaction using user provided utxos (zero or many) and

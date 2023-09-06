@@ -153,26 +153,24 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
           -- to bootstrap the init transaction. For now, we bear with it and
           -- keep the static keys in context.
           atomically (prepareTxToPost timeHandle wallet ctx chainState tx)
-            >>= finalizeTx wallet ctx chainState mempty
+            >>= finalizeTx wallet ctx (getKnownUTxO chainState)
         submitTx vtx
     , -- Handle that creates a draft commit tx using the user utxo.
       -- Possible errors are handled at the api server level.
-      draftCommitTx = \utxoToCommit -> do
-        chainState <- atomically getLatest
-        case Hydra.Chain.Direct.State.chainState chainState of
-          Initial st -> do
-            walletUtxos <- atomically getUTxO
-            let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
-            let userTxIns = Set.toList $ UTxO.inputSet utxoToCommit
-            let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
-            -- prevent trying to spend internal wallet's utxo
-            if null matchedWalletUtxo
-              then
-                sequenceA $
-                  commit' ctx st utxoToCommit
-                    <&> finalizeTx wallet ctx chainState (fst <$> utxoToCommit)
-              else pure $ Left SpendingNodeUtxoForbidden
-          _ -> pure $ Left FailedToDraftTxNotInitializing
+      draftCommitTx = \seed headId utxoToCommit -> do
+        let seedTxIn = undefined seed
+        knownUTxO <- getKnownUTxO <$> atomically getLatest
+        walletUtxos <- atomically getUTxO
+        let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
+        let userTxIns = Set.toList $ UTxO.inputSet utxoToCommit
+        let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
+        -- prevent trying to spend internal wallet's utxo
+        if null matchedWalletUtxo
+          then
+            sequenceA $
+              commit' ctx seedTxIn headId knownUTxO utxoToCommit
+                <&> finalizeTx wallet ctx (knownUTxO <> (fst <$> utxoToCommit))
+          else pure $ Left SpendingNodeUtxoForbidden
     , -- Submit a cardano transaction to the cardano-node using the
       -- LocalTxSubmission protocol.
       submitTx
@@ -183,12 +181,11 @@ finalizeTx ::
   (MonadThrow m) =>
   TinyWallet m ->
   ChainContext ->
-  ChainStateType Tx ->
   UTxO.UTxO ->
   Tx ->
   m Tx
-finalizeTx TinyWallet{sign, coverFee} ctx ChainStateAt{chainState} userUTxO partialTx = do
-  let headUTxO = getKnownUTxO ctx <> getKnownUTxO chainState <> userUTxO
+finalizeTx TinyWallet{sign, coverFee} ctx knownUTxO partialTx = do
+  let headUTxO = getKnownUTxO ctx <> knownUTxO
   coverFee headUTxO partialTx >>= \case
     Left ErrNoFuelUTxOFound ->
       throwIO (NoFuelUTXOFound :: PostTxError Tx)

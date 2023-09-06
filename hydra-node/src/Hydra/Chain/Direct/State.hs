@@ -84,6 +84,7 @@ import Hydra.Chain.Direct.Tx (
   NotAnInitReason,
   OpenThreadOutput (..),
   ResolvedTx (ResolvedTx, inputUTxO),
+  SeedTxIn (..),
   UTxOHash (UTxOHash),
   UTxOWithScript,
   abortTx,
@@ -147,6 +148,9 @@ instance IsChainState Tx where
 
   chainStateSlot ChainStateAt{recordedAt} =
     maybe (ChainSlot 0) chainSlotFromPoint recordedAt
+
+instance HasKnownUTxO ChainStateAt where
+  getKnownUTxO ChainStateAt{chainState} = getKnownUTxO chainState
 
 -- | Get a generic 'ChainSlot' from a Cardano 'ChainPoint'. Slot 0 is used for
 -- the genesis point.
@@ -316,11 +320,13 @@ initialize ctx =
 -- payment keys. For a variant which supports committing scripts, see `commit'`.
 commit ::
   ChainContext ->
-  InitialState ->
+  SeedTxIn ->
+  HeadId ->
+  UTxO ->
   UTxO' (TxOut CtxUTxO) ->
   Either (PostTxError Tx) Tx
-commit ctx st utxoToCommit =
-  commit' ctx st $ utxoToCommit <&> (,KeyWitness KeyWitnessForSpending)
+commit ctx seedTxIn headId knownUTxO utxoToCommit =
+  commit' ctx seedTxIn headId knownUTxO $ utxoToCommit <&> (,KeyWitness KeyWitnessForSpending)
 
 -- | Construct a commit transaction base on the 'InitialState' and some
 -- arbitrary UTxOs to commit.
@@ -328,13 +334,15 @@ commit ctx st utxoToCommit =
 -- NOTE: A simpler variant only supporting pubkey outputs is 'commit'.
 commit' ::
   ChainContext ->
-  InitialState ->
+  SeedTxIn ->
+  HeadId ->
+  UTxO ->
   UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
   Either (PostTxError Tx) Tx
-commit' ctx st utxoToCommit = do
-  case ownInitial ctx st of
+commit' ctx seedTxIn headId knownUTxO utxoToCommit = do
+  case ownInitial ctx seedTxIn knownUTxO of
     Nothing ->
-      Left (CannotFindOwnInitial{knownUTxO = getKnownUTxO st})
+      Left (CannotFindOwnInitial{knownUTxO})
     Just initial -> do
       let utxo = fst <$> utxoToCommit
       rejectByronAddress utxo
@@ -344,21 +352,19 @@ commit' ctx st utxoToCommit = do
  where
   ChainContext{networkId, ownParty, scriptRegistry} = ctx
 
-  InitialState{headId} = st
-
-ownInitial :: ChainContext -> InitialState -> Maybe (TxIn, TxOut CtxUTxO, Hash PaymentKey)
-ownInitial ChainContext{ownVerificationKey} st@InitialState{initialInitials} =
-  foldl' go Nothing initialInitials
+ownInitial :: ChainContext -> SeedTxIn -> UTxO -> Maybe (TxIn, TxOut CtxUTxO, Hash PaymentKey)
+ownInitial ChainContext{ownVerificationKey} seedTxIn utxo = do
+  foldl' go Nothing $ UTxO.pairs utxo
  where
   go (Just x) _ = Just x
-  go Nothing (i, out, _) = do
+  go Nothing (i, out) = do
     let vkh = verificationKeyHash ownVerificationKey
-    guard $ hasMatchingPT st vkh (txOutValue out)
+    guard $ hasMatchingPT seedTxIn vkh (txOutValue out)
     pure (i, out, vkh)
 
-hasMatchingPT :: InitialState -> Hash PaymentKey -> Value -> Bool
-hasMatchingPT InitialState{seedTxIn} vkh val =
-  case headTokensFromValue (mkHeadTokenScript seedTxIn) val of
+hasMatchingPT :: SeedTxIn -> Hash PaymentKey -> Value -> Bool
+hasMatchingPT (SeedTxIn txIn) vkh val =
+  case headTokensFromValue (mkHeadTokenScript txIn) val of
     [(AssetName bs, 1)] -> bs == serialiseToRawBytes vkh
     _ -> False
 
@@ -1037,7 +1043,7 @@ unsafeCommit ::
   UTxO ->
   Tx
 unsafeCommit ctx st u =
-  either (error . show) id $ commit ctx st u
+  either (error . show) id $ commit ctx undefined undefined undefined u
 
 unsafeObserveInit ::
   HasCallStack =>

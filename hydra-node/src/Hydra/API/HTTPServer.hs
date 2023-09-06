@@ -263,7 +263,11 @@ handleDraftCommitUtxo directChain body = do
     Left err ->
       pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
     Right DraftCommitTxRequest{utxoToCommit} -> do
-      draftCommitTx (fromTxOutWithWitness <$> utxoToCommit) <&> \case
+      -- FIXME: need to add them to the request, get rid of one, and/or use
+      -- knowledge of open heads (HeadLogic) to simplify request
+      let seed = undefined
+      let headId = undefined
+      draftCommitTx seed headId (fromTxOutWithWitness <$> utxoToCommit) <&> \case
         Left e ->
           -- Distinguish between errors users can actually benefit from and
           -- other errors that are turned into 500 responses.
