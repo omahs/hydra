@@ -131,6 +131,9 @@ import Test.QuickCheck.Modifiers (Positive (Positive))
 class HasKnownUTxO a where
   getKnownUTxO :: a -> UTxO
 
+instance HasKnownUTxO ResolvedTx where
+  getKnownUTxO = inputUTxO
+
 class HasSpendableUTxO a where
   getSpendableUTxO :: a -> SpendableUTxO
 
@@ -549,12 +552,12 @@ fanout ctx seed headId spendableUTxO utxoToFanout deadlineSlotNo = do
 -- 'ChainState'.
 observeSomeTx :: ChainContext -> ResolvedTx -> Maybe (OnChainTx Tx)
 observeSomeTx ctx rtx =
-  fst <$> hush (observeInit ctx tx)
+  hush (observeInit ctx tx)
     <|> fst <$> observeCommit ctx undefined tx
     <|> observeAbort rtx
     <|> fst <$> observeCollect undefined tx
     <|> fst <$> observeClose undefined tx
-    <|> fst <$> observeContest undefined tx
+    <|> observeContest rtx
     <|> observeFanout rtx
  where
   tx = fromResolvedTx rtx
@@ -565,9 +568,11 @@ observeSomeTx ctx rtx =
 observeInit ::
   ChainContext ->
   Tx ->
-  Either NotAnInitReason (OnChainTx Tx, InitialState)
-observeInit ctx tx = do
-  observation <-
+  Either NotAnInitReason (OnChainTx Tx)
+observeInit ctx tx =
+  toEvent
+    <$>
+    -- FIXME: not discard observations if "from wrong head"
     observeInitTx
       networkId
       (allVerificationKeys ctx)
@@ -575,19 +580,9 @@ observeInit ctx tx = do
       ownParty
       otherParties
       tx
-  pure (toEvent observation, toState observation)
  where
   toEvent InitObservation{contestationPeriod, parties, headId} =
     OnInitTx{contestationPeriod, parties, headId}
-
-  toState InitObservation{threadOutput, initials, commits, headId, seedTxIn} =
-    InitialState
-      { initialThreadOutput = threadOutput
-      , initialInitials = initials
-      , initialCommits = commits
-      , headId
-      , seedTxIn
-      }
 
   ChainContext{networkId, ownParty, otherParties} = ctx
 
@@ -696,22 +691,14 @@ observeClose st tx = do
 -- | Observe a fanout transition using a 'ClosedState' and 'observeContestTx'.
 -- This function checks the head id and ignores if not relevant.
 observeContest ::
-  ClosedState ->
-  Tx ->
-  Maybe (OnChainTx Tx, ClosedState)
-observeContest st tx = do
-  let utxo = getKnownUTxO st
-  observation <- observeContestTx utxo tx
-  let ContestObservation{contestedThreadOutput, headId = contestObservationHeadId, snapshotNumber, contesters} = observation
-  guard (closedStateHeadId == contestObservationHeadId)
-  let event = OnContestTx{snapshotNumber}
-  let st' = st{closedThreadOutput = closedThreadOutput{closedThreadUTxO = contestedThreadOutput, closedContesters = contesters}}
-  pure (event, st')
- where
-  ClosedState
-    { headId = closedStateHeadId
-    , closedThreadOutput
-    } = st
+  ResolvedTx ->
+  Maybe (OnChainTx Tx)
+observeContest tx = do
+  let utxo = getKnownUTxO tx
+  observation <- observeContestTx utxo (fromResolvedTx tx)
+  let ContestObservation{snapshotNumber, contesters} = observation
+  -- FIXME: move to head logic guard (closedStateHeadId == contestObservationHeadId)
+  pure OnContestTx{snapshotNumber}
 
 -- | Observe a fanout transition using a 'ClosedState' and 'observeFanoutTx'.
 observeFanout ::
@@ -1058,7 +1045,7 @@ unsafeObserveInit ::
 unsafeObserveInit cctx txInit =
   case observeInit cctx txInit of
     Left err -> error $ "Did not observe an init tx: " <> show err
-    Right st -> snd st
+    Right st -> undefined -- FIXME: need to avoid chain states in generators now
 
 unsafeObserveInitAndCommits ::
   HasCallStack =>
