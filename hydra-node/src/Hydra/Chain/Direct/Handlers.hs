@@ -139,6 +139,9 @@ mkChain ::
 mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{getLatest} submitTx =
   Chain
     { postTx = \tx -> do
+        -- TODO: it's possible to move the chainState further up into the Head
+        -- (again), because we can observe multiple transactions independently
+        -- and the resulting chain states are combinable into a new chain state
         chainState <- atomically getLatest
         traceWith tracer $ ToPost{toPost = tx}
         timeHandle <- queryTimeHandle
@@ -287,6 +290,9 @@ chainSyncHandler tracer callback getTimeHandle ctx localChainState =
       Nothing -> pure Nothing
       Just observedTx -> do
         -- TODO: this can be a single modify
+        -- TODO: we could even get rid of the local chain state (again) because
+        -- now the observation yields generically combinable "chain states" (in
+        -- our case a SpendableUTxO)
         csa@ChainStateAt{spendableUTxO} <- getLatest
         let newChainState =
               ChainStateAt
