@@ -100,6 +100,41 @@ spec = parallel $ do
           & counterexample (show receivedMsgs)
           & collect (length receivedMsgs)
 
+  prop "drops already received messages V2" $ \(randomMessages :: [Msg String]) ->
+    let
+      generatedMessages = filter ((>= 1) . messageId) randomMessages
+
+      expectedMessages = filterMonotonicallyIncreasing generatedMessages
+      filterMonotonicallyIncreasing :: [Msg String] -> [String]
+      filterMonotonicallyIncreasing msgs =
+        let
+          filterMonotonicallyIncreasing' :: [Msg String] -> [String] -> Int -> [String]
+          filterMonotonicallyIncreasing' [] filteredMessages _ = filteredMessages
+          filterMonotonicallyIncreasing' ((Msg index content) : rest) filteredMessages expectedIndex
+            | index == expectedIndex = filterMonotonicallyIncreasing' rest (filteredMessages ++ [content]) (expectedIndex + 1)
+            | otherwise = filterMonotonicallyIncreasing' rest filteredMessages expectedIndex
+         in
+          filterMonotonicallyIncreasing' msgs [] 1
+
+      transmittedMsgs = runSimOrThrow $ do
+        transmittedMessages <- newTVarIO mempty
+
+        withReliability
+          alice
+          ( \receive _ -> do
+              forM_ generatedMessages $ \m ->
+                receive (Authenticated m bob)
+          )
+          (captureIncoming transmittedMessages)
+          $ \_ ->
+            pure ()
+
+        toList <$> readTVarIO transmittedMessages
+     in
+      (transmittedMsgs `shouldBe` expectedMessages)
+        & counterexample (show transmittedMsgs)
+        & collect (length transmittedMsgs)
+
   it "do not drop messages with same ids from different peers" $ do
     let receivedMsgs = runSimOrThrow $ do
           receivedMessages <- newTVarIO mempty
@@ -123,6 +158,10 @@ data Msg msg = Msg
   , message :: msg
   }
   deriving (Eq, Show)
+
+instance (Arbitrary msg) => Arbitrary (Msg msg) where
+  arbitrary :: Gen (Msg msg)
+  arbitrary = Msg <$> arbitrary <*> arbitrary
 
 withReliability ::
   (MonadSTM m) =>
