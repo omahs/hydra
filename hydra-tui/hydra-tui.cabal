@@ -57,6 +57,7 @@ common project-config
     StandaloneDeriving
     TupleSections
     TypeFamilies
+    TypeOperators
     TypeSynonymInstances
     ViewPatterns
 
@@ -81,13 +82,14 @@ library
     , aeson
     , async
     , base
-    , brick                 ==0.73
+    , brick                 ==1.10
     , containers
     , hydra-cardano-api
     , hydra-node
     , hydra-prelude
     , io-classes
     , microlens
+    , microlens-mtl
     , microlens-th
     , optparse-applicative
     , req

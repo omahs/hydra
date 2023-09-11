@@ -62,8 +62,9 @@ import Hydra.Network (Host (..), NodeId)
 import Hydra.Party (Party (..))
 import Hydra.Snapshot (Snapshot (..))
 import Hydra.TUI.Options (Options (..))
-import Lens.Micro (Lens', lens, (%~), (.~), (?~), (^.), (^?), _head)
+import Lens.Micro (Lens', lens, (^.), (^?), _head)
 import Lens.Micro.TH (makeLensesFor)
+import Lens.Micro.Mtl (preuse, (.=), assign, use, (%=), (?=))
 import Paths_hydra_tui (version)
 import qualified Prelude
 
@@ -108,11 +109,9 @@ data Severity
 data DialogState where
   NoDialog :: DialogState
   Dialog ::
-    forall s e n.
-    (n ~ Name, e ~ HydraEvent Tx) =>
+    forall s n.
     Text ->
-    Form s e n ->
-    (State -> s -> EventM n (Next State)) ->
+    Form s (HydraEvent Tx) n ->
     DialogState
 
 data HeadState
@@ -185,204 +184,190 @@ negative = "negative"
 own :: AttrName
 own = "own"
 
-info :: Text -> State -> State
+info :: MonadState State m => Text -> m ()
 info = report Info
 
-info' :: UTCTime -> Text -> State -> State
+info' :: MonadState State m => UTCTime -> Text -> m ()
 info' time = report' time Info
 
-warn :: Text -> State -> State
+warn :: MonadState State m => Text -> m ()
 warn = report Error
 
-warn' :: UTCTime -> Text -> State -> State
+warn' :: MonadState State m => UTCTime -> Text -> m ()
 warn' time = report' time Error
 
-report :: Severity -> Text -> State -> State
-report typ msg s =
-  report' (s ^. nowL) typ msg s
+report :: MonadState State m => Severity -> Text -> m ()
+report typ msg = do
+  x <- use nowL
+  report' x typ msg
 
-report' :: UTCTime -> Severity -> Text -> State -> State
-report' time typ msg s =
-  s & feedbackL %~ (userFeedback :)
- where
-  userFeedback = UserFeedback typ msg time
+report' :: MonadState State m => UTCTime -> Severity -> Text -> m ()
+report' time typ msg = feedbackL %= (UserFeedback typ msg time :)
 
-stopPending :: State -> State
-stopPending = pendingL .~ NotPending
+stopPending :: MonadState State m => m ()
+stopPending = pendingL .= NotPending
 
-initPending :: State -> State
-initPending = pendingL .~ Pending
+initPending :: MonadState State m => m ()
+initPending = pendingL .= Pending
 
 --
 -- Update
 --
 
 handleEvent ::
-  Client Tx IO ->
-  CardanoClient ->
-  State ->
   BrickEvent Name (HydraEvent Tx) ->
-  EventM Name (Next State)
-handleEvent client@Client{sendInput} cardanoClient s = \case
-  AppEvent e ->
-    continue (handleAppEvent s e)
-  VtyEvent e -> case s ^? dialogStateL of
-    Just (Dialog title form submit) ->
-      handleDialogEvent (title, form, submit) s e
-    Just NoDialog -> case e of
-      -- Quit
-      EvKey (KChar 'c') [MCtrl] -> halt s
-      EvKey (KChar 'd') [MCtrl] -> halt s
-      -- Commands
-      EvKey (KChar c) _ ->
-        if
-            | c `elem` ['<'] ->
-                scroll s Up *> continue s
-            | c `elem` ['>'] ->
-                scroll s Down *> continue s
-            | c `elem` ['h', 'H'] ->
-                continue $ s & feedbackStateL .~ Full
-            | c `elem` ['s', 'S'] ->
-                continue $ s & feedbackStateL .~ Short
-            | c `elem` ['q', 'Q'] ->
-                halt s
-            | c `elem` ['i', 'I'] ->
-                liftIO (sendInput Init) >> setPending s
-            | c `elem` ['a', 'A'] ->
-                liftIO (sendInput Abort) >> setPending s
-            | c `elem` ['f', 'F'] ->
-                liftIO (sendInput Fanout) >> setPending s
-            | c `elem` ['c', 'C'] ->
-                case s ^? headStateL of
-                  Just Initializing{} ->
-                    showCommitDialog client cardanoClient s
-                  Just Open{} ->
-                    liftIO (sendInput Close) >> setPending s
-                  _ ->
-                    continue s
-            | c `elem` ['n', 'N'] ->
-                handleNewTxEvent client cardanoClient s
-            | otherwise ->
-                continue s
-      _ -> continue s
-    -- Not connected
-    Nothing -> case e of
-      -- Quit
-      EvKey (KChar 'c') [MCtrl] -> halt s
-      EvKey (KChar 'd') [MCtrl] -> halt s
-      EvKey (KChar 'q') [] -> halt s
-      _ -> continue s
+  EventM Name State ()
+handleEvent  = \case
+  AppEvent e -> handleAppEvent e
+  VtyEvent e -> do
+    x <- preuse dialogStateL
+    case x of
+      Just (Dialog title form submit) ->
+        handleDialogEvent title form submit e
+      Just NoDialog -> case e of
+        -- Quit
+        EvKey (KChar 'c') [MCtrl] -> lift halt
+        EvKey (KChar 'd') [MCtrl] -> lift halt
+        -- Commands
+        EvKey (KChar c) _ ->
+          if
+              | c `elem` ['<'] ->
+                  scroll Up
+              | c `elem` ['>'] ->
+                  scroll Down
+              | c `elem` ['h', 'H'] ->
+                  feedbackStateL .= Full
+              | c `elem` ['s', 'S'] ->
+                  feedbackStateL .= Short
+              | c `elem` ['q', 'Q'] ->
+                  halt
+              | c `elem` ['i', 'I'] ->
+                  liftIO (sendInput Init) >> setPending
+              | c `elem` ['a', 'A'] ->
+                  liftIO (sendInput Abort) >> setPending
+              | c `elem` ['f', 'F'] ->
+                  liftIO (sendInput Fanout) >> setPending
+              | c `elem` ['c', 'C'] -> do
+                  z <- preuse headStateL
+                  case z of
+                    Just Initializing{} ->
+                      showCommitDialog client cardanoClient
+                    Just Open{} ->
+                      liftIO (sendInput Close) >> setPending
+                    _ ->
+                      pure ()
+              | c `elem` ['n', 'N'] ->
+                  handleNewTxEvent client cardanoClient
+              | otherwise ->
+                  pure ()
+        _ -> pure ()
+      -- Not connected
+      Nothing -> case e of
+        -- Quit
+        EvKey (KChar 'c') [MCtrl] -> halt
+        EvKey (KChar 'd') [MCtrl] -> halt
+        EvKey (KChar 'q') [] -> halt
+        _ -> pure ()
   e ->
-    continue $ s & warn ("unhandled event: " <> show e)
+    warn ("unhandled event: " <> show e)
 
-setPending :: State -> EventM n (Next State)
-setPending s =
-  case s ^? pendingL of
-    Just Pending -> do
-      continue $ s & info "Transition already pending"
-    Just NotPending -> do
-      continue $ s & initPending
-    -- XXX: Not connected is impossible here (smell -> refactor)
-    Nothing -> continue s
+setPending :: EventM n State ()
+setPending = use pendingL >>= \case
+    Pending -> info "Transition already pending"
+    NotPending -> initPending
 
 handleAppEvent ::
-  State ->
+  MonadState State m =>
   HydraEvent Tx ->
-  State
-handleAppEvent s = \case
-  ClientConnected ->
-    Connected
-      { nodeHost = s ^. nodeHostL
+  m ()
+handleAppEvent = \case
+  ClientConnected -> do
+    n <- use nodeHostL
+    t <- use nowL
+    id .= Connected
+      { nodeHost = n
       , me = Nothing
       , peers = []
       , headState = Idle
       , dialogState = NoDialog
       , feedbackState = Short
       , feedback = []
-      , now = s ^. nowL
+      , now = t
       , pending = NotPending
       , hydraHeadId = Nothing
       }
-  ClientDisconnected ->
-    Disconnected
-      { nodeHost = s ^. nodeHostL
-      , now = s ^. nowL
+  ClientDisconnected -> do
+    n <- use nodeHostL
+    t <- use nowL
+    id .= Disconnected
+      { nodeHost = n
+      , now = t
       }
   Update TimedServerOutput{output = Greetings{me}} ->
-    s & meL ?~ me
+    meL ?= me
   Update TimedServerOutput{output = PeerConnected p} ->
-    s & peersL %~ \cp -> nub $ cp <> [p]
+    peersL %= \cp -> nub $ cp <> [p]
   Update TimedServerOutput{output = (PeerDisconnected p)} ->
-    s & peersL %~ \cp -> cp \\ [p]
+    peersL %= \cp -> cp \\ [p]
   Update TimedServerOutput{time, output = CommandFailed{clientInput}} -> do
-    s
-      & warn' time ("Invalid command: " <> show clientInput)
-      & stopPending
-  Update TimedServerOutput{time, output = HeadIsInitializing{parties, headId}} ->
+    warn' time ("Invalid command: " <> show clientInput)
+    stopPending
+  Update TimedServerOutput{time, output = HeadIsInitializing{parties, headId}} -> do
     let utxo = mempty
         ps = toList parties
-     in s
-          & headStateL .~ Initializing{parties = ps, remainingParties = ps, utxo, headId = headId}
-          & stopPending
-          & info' time "Head initialized, ready for commit(s)."
-  Update TimedServerOutput{output = Committed{party, utxo}} ->
-    s
-      & headStateL %~ partyCommitted [party] utxo
-      & info (show party <> " committed " <> renderValue (balance @Tx utxo))
-      & if Just (Just party) == s ^? meL
-        then stopPending
-        else id
-  Update TimedServerOutput{time, output = HeadIsOpen{utxo}} ->
-    s
-      & headStateL %~ headIsOpen utxo
-      & info' time "Head is now open!"
-  Update TimedServerOutput{time, output = HeadIsClosed{headId, snapshotNumber, contestationDeadline}} ->
-    s
-      & headStateL .~ Closed{headId, contestationDeadline}
-      & info' time ("Head closed with snapshot number " <> show snapshotNumber)
-      & stopPending
-  Update TimedServerOutput{output = HeadIsContested{headId, snapshotNumber}} ->
-    s & info ("Head " <> show headId <> " contested with snapshot number " <> show snapshotNumber)
-  Update TimedServerOutput{time, output = ReadyToFanout{headId}} ->
-    s
-      & headStateL .~ FanoutPossible{headId}
-      & info' time "Contestation period passed, ready for fanout."
-  Update TimedServerOutput{time, output = HeadIsAborted{}} ->
-    s
-      & headStateL .~ Idle
-      & info' time "Head aborted, back to square one."
-      & stopPending
-  Update TimedServerOutput{time, output = HeadIsFinalized{utxo}} ->
-    s
-      & headStateL .~ Final{utxo}
-      & info' time "Head finalized."
-      & stopPending
-  Update TimedServerOutput{time, output = TxValid{}} ->
-    s & report' time Success "Transaction submitted successfully!"
+
+    headStateL .= Initializing{parties = ps, remainingParties = ps, utxo, headId = headId}
+    stopPending
+    info' time "Head initialized, ready for commit(s)."
+
+  Update TimedServerOutput{output = Committed{party, utxo}} -> do
+    headStateL %= partyCommitted [party] utxo
+    info (show party <> " committed " <> renderValue (balance @Tx utxo))
+    x <- use meL
+    if Just party == x then stopPending else pure ()
+  Update TimedServerOutput{time, output = HeadIsOpen{utxo}} -> do
+      headStateL %= headIsOpen utxo
+      info' time "Head is now open!"
+  Update TimedServerOutput{time, output = HeadIsClosed{headId, snapshotNumber, contestationDeadline}} -> do
+      headStateL .= Closed{headId, contestationDeadline}
+      info' time ("Head closed with snapshot number " <> show snapshotNumber)
+      stopPending
+  Update TimedServerOutput{output = HeadIsContested{headId, snapshotNumber}} -> do
+      info ("Head " <> show headId <> " contested with snapshot number " <> show snapshotNumber)
+  Update TimedServerOutput{time, output = ReadyToFanout{headId}} -> do
+      headStateL .= FanoutPossible{headId}
+      info' time "Contestation period passed, ready for fanout."
+  Update TimedServerOutput{time, output = HeadIsAborted{}} -> do
+      headStateL .= Idle
+      info' time "Head aborted, back to square one."
+      stopPending
+  Update TimedServerOutput{time, output = HeadIsFinalized{utxo}} -> do
+      headStateL .= Final{utxo}
+      info' time "Head finalized."
+      stopPending
+  Update TimedServerOutput{time, output = TxValid{}} -> do
+      report' time Success "Transaction submitted successfully!"
   Update TimedServerOutput{time, output = TxInvalid{transaction, validationError}} ->
-    s & warn' time ("Transaction with id " <> show (txId transaction) <> " is not applicable: " <> show validationError)
+      warn' time ("Transaction with id " <> show (txId transaction) <> " is not applicable: " <> show validationError)
   Update TimedServerOutput{output = SnapshotConfirmed{snapshot}} ->
     snapshotConfirmed snapshot
   Update TimedServerOutput{output = GetUTxOResponse{}} ->
-    s -- TUI is currently not requesting UTxO itself, ignore it
+    pure ()
   Update TimedServerOutput{time, output = InvalidInput{reason}} ->
-    s & warn' time ("Invalid input error: " <> toText reason)
+    warn' time ("Invalid input error: " <> toText reason)
   Update TimedServerOutput{time, output = PostTxOnChainFailed{postTxError}} ->
     case postTxError of
-      NotEnoughFuel ->
-        s
-          & warn' time "Not enough Fuel. Please provide more to the internal wallet and try again."
-          & stopPending
-      InternalWalletError{reason} ->
-        s
-          & warn' time reason
-          & stopPending
-      _ ->
-        s
-          & warn' time ("An error happened while trying to post a transaction on-chain: " <> show postTxError)
-          & stopPending
+      NotEnoughFuel -> do
+        warn' time "Not enough Fuel. Please provide more to the internal wallet and try again."
+        stopPending
+      InternalWalletError{reason} -> do
+        warn' time reason
+        stopPending
+      _ -> do
+          warn' time ("An error happened while trying to post a transaction on-chain: " <> show postTxError)
+          stopPending
   Tick now ->
-    s & nowL .~ now
+    nowL .= now
  where
   partyCommitted party commit = \case
     Initializing{parties, remainingParties, utxo, headId} ->
@@ -398,56 +383,52 @@ handleAppEvent s = \case
     Initializing{headId, parties} -> Open{headId, parties, utxo}
     hs -> hs
 
-  snapshotConfirmed Snapshot{utxo, number} =
-    case s ^? headStateL of
-      Just Open{} ->
-        s
-          & headStateL . utxoL .~ utxo
-          & info ("Snapshot #" <> show number <> " confirmed.")
+  snapshotConfirmed Snapshot{utxo, number} = do
+    x <- preuse headStateL
+    case x of
+      Just Open{} -> do
+          headStateL . utxoL .= utxo
+          info ("Snapshot #" <> show number <> " confirmed.")
       _ ->
-        s & warn "Snapshot confirmed but head is not open?"
+        warn "Snapshot confirmed but head is not open?"
 
-handleDialogEvent ::
-  forall s e n.
-  (n ~ Name, e ~ HydraEvent Tx) =>
-  (Text, Form s e n, State -> s -> EventM n (Next State)) ->
-  State ->
-  Vty.Event ->
-  EventM n (Next State)
-handleDialogEvent (title, form, submit) s = \case
+handleAppEvent :: Vty.Event -> EventM n State ()
+handleAppEvent = \case
+  EvKey KEsc [] ->
+    id .= NoDialog
+  EvKey KEnter [] -> do
+    case invalidFields form of
+      [] -> formState form
+      fs -> warn ("Invalid fields: " <> Text.intercalate ", " fs)
+
+handleDialogEvent :: Vty.Event -> EventM n DialogState ()
+handleDialogEvent = \case
   -- NOTE: Field focus is changed using Tab / Shift-Tab, but arrows are more
   -- intuitive, so we forward them. Same for Space <-> Enter
   EvKey KUp [] ->
-    handleDialogEvent (title, form, submit) s (EvKey KBackTab [])
+    handleDialogEvent $ EvKey KBackTab []
   EvKey KDown [] ->
-    handleDialogEvent (title, form, submit) s (EvKey (KChar '\t') [])
-  EvKey KEsc [] ->
-    continue $ s & dialogStateL .~ NoDialog
-  EvKey KEnter [] -> do
-    case invalidFields form of
-      [] -> submit s (formState form)
-      fs -> continue $ s & warn ("Invalid fields: " <> Text.intercalate ", " fs)
+    handleDialogEvent $ EvKey (KChar '\t') []
   EvKey (KChar c) _
     | c `elem` ['<'] ->
-        scroll s Up *> continue s
+        scroll Up
     | c `elem` ['>'] ->
-        scroll s Down *> continue s
+        scroll Down
     | c `elem` ['h', 'H'] ->
-        continue $ s & feedbackStateL .~ Full
+        feedbackStateL .= Full
     | c `elem` ['s', 'S'] ->
-        continue $ s & feedbackStateL .~ Short
+        feedbackStateL .= Short
   e -> do
-    form' <- handleFormEvent (VtyEvent e) form
-    continue $ s & dialogStateL .~ Dialog title form' submit
+    zoom dialogStateL $ handleFormEvent (VtyEvent e)
+    dialogStateL .= Dialog title form' submit
 
 showCommitDialog ::
   Client Tx IO ->
   CardanoClient ->
-  State ->
-  EventM n (Next State)
-showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, networkId} s = do
+  EventM n State ()
+showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, networkId} = do
   utxo <- liftIO $ queryUTxOByAddress [ourAddress]
-  continue $ s & dialogStateL .~ commitDialog (UTxO.toMap utxo)
+  dialogStateL .= commitDialog (UTxO.toMap utxo)
  where
   ourAddress =
     makeShelleyAddress
@@ -460,64 +441,117 @@ showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, ne
    where
     title = "Select UTXO to commit"
     form = newForm (utxoCheckboxField u) ((,False) <$> u)
-    submit s' selected = do
+    submit selected = do
       let commitUTxO = UTxO $ Map.mapMaybe (\(v, p) -> if p then Just v else Nothing) selected
-      liftIO (externalCommit commitUTxO) >> setPending (s' & dialogStateL .~ NoDialog)
+      liftIO (externalCommit commitUTxO) >> do
+        dialogStateL .= NoDialog
+        setPending
+
+mkTransactionBuilderForm
+  :: MonadState State m =>
+   MonadReader AppEnv m =>
+  m (Form (TxIn, TxOut CtxUTxO) w Name)
+mkTransactionBuilderForm = do
+   x <- myAvailableUTxO
+   pure $ newForm (utxoRadioField x) (Prelude.head (Map.toList x))
+
+askVerificationKey :: MonadReader AppEnv m => m (VerificationKey PaymentKey)
+askVerificationKey = do
+  x <- asks hydraClient
+  pure $ getVerificationKey $ sk x
+
+askNetworkId :: MonadReader AppEnv m => m NetworkId
+askNetworkId = do
+  x <- asks cardanoClient
+  pure $ networkId x
+
+mkTransactionBuilderDialog
+  :: forall ctx m. MonadState State m =>
+     MonadReader AppEnv m =>
+     UTxO' (TxOut ctx)
+  -> m DialogState
+mkTransactionBuilderDialog utxo = do
+  let title :: Text
+      title = "Select UTXO to spend"
+
+      submit :: m ()
+      submit = mkRecipientsDialog utxo >>= assign dialogStateL
+
+  form <- mkTransactionBuilderForm
+
+  pure $ Dialog title form submit
+
+mkRecipientsForm :: UTxO' (TxOut ctx) -> Form AddressInEra w Name
+mkRecipientsForm (UTxO utxo) =
+  let field = radioField id [(u, show u, decodeUtf8 $ encodePretty u) | u <- nub addresses]
+      addresses = getRecipientAddress <$> Map.elems utxo
+      getRecipientAddress TxOut{txOutAddress = addr} = addr
+  in newForm [field] (Prelude.head addresses)
+
+
+mkRecipientsDialog :: forall m ctx. MonadState State m => UTxO' (TxOut ctx) -> m DialogState
+mkRecipientsDialog input = do
+   let title :: Text
+       title = "Select a recipient"
+
+       submit :: AddressInEra -> m ()
+       submit recipient = mkAmountDialog input recipient >>= assign dialogStateL
+
+       form :: Form AddressInEra w Name
+       form = mkRecipientsForm input
+
+   pure $ Dialog title form submit
+
+-- NOTE(SN): use 'Integer' because we don't have a 'Read Lovelace'
+mkAmountForm :: Integer -> Form Integer w Name
+mkAmountForm limit =
+  let field = editShowableFieldWithValidate id "amount" (\n -> n > 0 && n <= limit)
+  in newForm [field] limit
+
+mkAmountDialog :: MonadState State m => UTxO' (TxOut ctx) -> AddressInEra -> m DialogState
+mkAmountDialog input@(_, TxOut{txOutValue = v}) recipient = do
+
+   sk <- asks (sk . hydraClient)
+
+   sendInput <- asks (sendInput . hydraClient)
+
+   let title :: Text
+       title = "Choose an amount (max: " <> show limit <> ")"
+
+       limit :: Integer
+       Lovelace limit = selectLovelace v
+
+       submit :: MonadState State m => Integer -> m ()
+       submit amount = do
+         case mkSimpleTx (_ input) (recipient, lovelaceToValue $ Lovelace amount) sk of
+          Left e -> warn ("Failed to construct tx, contact @_ktorz_ on twitter: " <> show e)
+          Right tx -> do
+            liftIO (sendInput (NewTx tx))
+            dialogStateL .= NoDialog
+
+       form :: Form Integer w Name
+       form = mkAmountForm limit
+
+   pure $ Dialog title form submit
+
+
+data AppEnv = AppEnv {
+    hydraClient :: Client Tx IO
+  , cardanoClient :: CardanoClient
+}
+
 
 handleNewTxEvent ::
-  Client Tx IO ->
-  CardanoClient ->
-  State ->
-  EventM n (Next State)
-handleNewTxEvent Client{sendInput, sk} CardanoClient{networkId} s = case s ^? headStateL of
-  Just Open{utxo} ->
-    continue $ s & dialogStateL .~ transactionBuilderDialog utxo
-  _ ->
-    continue $ s & warn "Invalid command."
- where
-  vk = getVerificationKey sk
+  MonadState State m =>
+  MonadReader AppEnv m =>
+  m ()
+handleNewTxEvent = do
+  x <- preuse headStateL
+  case x of
+    Just Open{utxo} ->
+      mkTransactionBuilderDialog utxo >>= assign dialogStateL
+    _ -> warn "Invalid command."
 
-  transactionBuilderDialog utxo =
-    Dialog title form submit
-   where
-    myUTxO = myAvailableUTxO networkId vk s
-    title = "Select UTXO to spend"
-    -- FIXME: This crashes if the utxo is empty
-    form = newForm (utxoRadioField myUTxO) (Prelude.head (Map.toList myUTxO))
-    submit s' input =
-      continue $ s' & dialogStateL .~ recipientsDialog input utxo
-
-  recipientsDialog input (UTxO utxo) =
-    Dialog title form submit
-   where
-    title = "Select a recipient"
-    form =
-      let field = radioField id [(u, show u, decodeUtf8 $ encodePretty u) | u <- nub addresses]
-          addresses = getRecipientAddress <$> Map.elems utxo
-          getRecipientAddress TxOut{txOutAddress = addr} = addr
-       in newForm [field] (Prelude.head addresses)
-
-    submit s' recipient =
-      continue $ s' & dialogStateL .~ amountDialog input recipient
-
-  amountDialog input@(_, TxOut{txOutValue = v}) recipient =
-    Dialog title form submit
-   where
-    title = "Choose an amount (max: " <> show limit <> ")"
-
-    Lovelace limit = selectLovelace v
-
-    form =
-      -- NOTE(SN): use 'Integer' because we don't have a 'Read Lovelace'
-      let field = editShowableFieldWithValidate id "amount" (\n -> n > 0 && n <= limit)
-       in newForm [field] limit
-
-    submit s' amount = do
-      case mkSimpleTx input (recipient, lovelaceToValue $ Lovelace amount) sk of
-        Left e -> continue $ s' & warn ("Failed to construct tx, contact @_ktorz_ on twitter: " <> show e)
-        Right tx -> do
-          liftIO (sendInput (NewTx tx))
-          continue $ s' & dialogStateL .~ NoDialog
 
 --
 -- View
@@ -528,9 +562,10 @@ fullFeedbackViewportName = "full-feedback-view-port"
 shortFeedbackViewportName :: Name
 shortFeedbackViewportName = "short-feedback-view-port"
 
-scroll :: State -> Direction -> EventM Name ()
-scroll s direction =
-  case s ^? feedbackStateL of
+scroll :: Direction -> EventM Name DialogState ()
+scroll direction = do
+  x <- preuse feedbackStateL
+  case x of
     Just Full -> do
       let vp = viewportScroll fullFeedbackViewportName
       vScrollPage vp direction
@@ -844,14 +879,17 @@ utxoRadioField u =
       ]
   ]
 
-myAvailableUTxO :: NetworkId -> VerificationKey PaymentKey -> State -> Map TxIn (TxOut CtxUTxO)
-myAvailableUTxO networkId vk s =
-  case s ^? headStateL of
+myAvailableUTxO :: MonadReader AppEnv m => MonadState State m => m (Map TxIn (TxOut CtxUTxO))
+myAvailableUTxO = do
+  x <- preuse headStateL
+  networkId <- askNetworkId
+  vk <- askVerificationKey
+  case x of
     Just Open{utxo = UTxO u'} ->
       let myAddress = mkVkAddress networkId vk
-       in Map.filter (\TxOut{txOutAddress = addr} -> addr == myAddress) u'
+       in pure $ Map.filter (\TxOut{txOutAddress = addr} -> addr == myAddress) u'
     _ ->
-      mempty
+      pure mempty
 
 --
 -- Style
@@ -889,9 +927,9 @@ runWithVty buildVty options@Options{hydraNodeHost, cardanoNetworkId, cardanoNode
     App
       { appDraw = draw client cardanoClient
       , appChooseCursor = showFirstCursor
-      , appHandleEvent = handleEvent client cardanoClient
-      , appStartEvent = pure
-      , appAttrMap = style
+      , appHandleEvent = handleEvent
+      , appStartEvent = pure ()
+      , appAttrMap = Hydra.TUI.style
       }
   initialState now =
     Disconnected
