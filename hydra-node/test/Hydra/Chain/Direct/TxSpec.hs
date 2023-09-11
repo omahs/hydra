@@ -68,7 +68,7 @@ spec =
                             Left err ->
                               property False & counterexample ("AbortTx construction failed: " <> show err)
                             Right (toLedgerTx -> txAbort) ->
-                              case coverFee_ ledgerPParams systemStart epochInfo lookupUTxO walletUTxO txAbort of
+                              case coverFee_ pparams systemStart epochInfo lookupUTxO walletUTxO txAbort of
                                 Left err ->
                                   True
                                     & label
@@ -80,7 +80,7 @@ spec =
                                           ErrTranslationError{} -> "Transaction context translation error"
                                       )
                                 Right ledgerTx ->
-                                  let actualExecutionCost = fromLedgerCoin $ getMinFeeTx ledgerPParams ledgerTx
+                                  let actualExecutionCost = fromLedgerCoin $ getMinFeeTx pparams ledgerTx
                                       fee = txFee' apiTx
                                       apiTx = fromLedgerTx ledgerTx
                                    in actualExecutionCost > Lovelace 0 && fee > actualExecutionCost
@@ -135,9 +135,6 @@ spec =
                     & counterexample "Failed to ignore init tx for the right reason."
                     & counterexample (renderTx tx)
                     & counterexample (show e)
-
-ledgerPParams :: PParams LedgerEra
-ledgerPParams = either (error . show) id $ toLedgerPParams (shelleyBasedEra @Era) pparams
 
 withinTxExecutionBudget :: EvaluationReport -> Property
 withinTxExecutionBudget report =
