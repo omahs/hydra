@@ -29,6 +29,7 @@ import Brick.Forms (
 import Brick.Widgets.Border (hBorder, vBorder)
 import Brick.Widgets.Border.Style (ascii)
 import qualified Cardano.Api.UTxO as UTxO
+import Control.Lens ((.=), use, preuse)
 import Data.List (nub, (\\))
 import qualified Data.Map.Strict as Map
 import Data.Text (chunksOf)
@@ -112,7 +113,7 @@ data DialogState where
     (n ~ Name, e ~ HydraEvent Tx) =>
     Text ->
     Form s e n ->
-    (State -> s -> EventM n (Next State)) ->
+    (s -> EventM n State ()) ->
     DialogState
 
 data HeadState
@@ -220,70 +221,70 @@ initPending = pendingL .~ Pending
 handleEvent ::
   Client Tx IO ->
   CardanoClient ->
-  State ->
   BrickEvent Name (HydraEvent Tx) ->
-  EventM Name (Next State)
-handleEvent client@Client{sendInput} cardanoClient s = \case
-  AppEvent e ->
-    continue (handleAppEvent s e)
-  VtyEvent e -> case s ^? dialogStateL of
-    Just (Dialog title form submit) ->
-      handleDialogEvent (title, form, submit) s e
-    Just NoDialog -> case e of
-      -- Quit
-      EvKey (KChar 'c') [MCtrl] -> halt s
-      EvKey (KChar 'd') [MCtrl] -> halt s
-      -- Commands
-      EvKey (KChar c) _ ->
-        if
-            | c `elem` ['<'] ->
-                scroll s Up *> continue s
-            | c `elem` ['>'] ->
-                scroll s Down *> continue s
-            | c `elem` ['h', 'H'] ->
-                continue $ s & feedbackStateL .~ Full
-            | c `elem` ['s', 'S'] ->
-                continue $ s & feedbackStateL .~ Short
-            | c `elem` ['q', 'Q'] ->
-                halt s
-            | c `elem` ['i', 'I'] ->
-                liftIO (sendInput Init) >> setPending s
-            | c `elem` ['a', 'A'] ->
-                liftIO (sendInput Abort) >> setPending s
-            | c `elem` ['f', 'F'] ->
-                liftIO (sendInput Fanout) >> setPending s
-            | c `elem` ['c', 'C'] ->
-                case s ^? headStateL of
-                  Just Initializing{} ->
-                    showCommitDialog client cardanoClient s
-                  Just Open{} ->
-                    liftIO (sendInput Close) >> setPending s
-                  _ ->
-                    continue s
-            | c `elem` ['n', 'N'] ->
-                handleNewTxEvent client cardanoClient s
-            | otherwise ->
-                continue s
-      _ -> continue s
-    -- Not connected
-    Nothing -> case e of
-      -- Quit
-      EvKey (KChar 'c') [MCtrl] -> halt s
-      EvKey (KChar 'd') [MCtrl] -> halt s
-      EvKey (KChar 'q') [] -> halt s
-      _ -> continue s
+  EventM Name State ()
+handleEvent client@Client{sendInput} cardanoClient = \case
+  AppEvent e -> modify (flip handleAppEvent e)
+  VtyEvent e -> do
+    x <- preuse dialogStateL
+    case x of
+      Just (Dialog title form submit) ->
+        handleDialogEvent (title, form, submit) e
+      Just NoDialog -> case e of
+        -- Quit
+        EvKey (KChar 'c') [MCtrl] -> halt
+        EvKey (KChar 'd') [MCtrl] -> halt
+        -- Commands
+        EvKey (KChar c) _ ->
+          if
+              | c `elem` ['<'] ->
+                  scroll Up
+              | c `elem` ['>'] ->
+                  scroll Down
+              | c `elem` ['h', 'H'] ->
+                  feedbackStateL .= Full
+              | c `elem` ['s', 'S'] ->
+                  feedbackStateL .= Short
+              | c `elem` ['q', 'Q'] ->
+                  halt
+              | c `elem` ['i', 'I'] ->
+                  liftIO (sendInput Init) >> setPending
+              | c `elem` ['a', 'A'] ->
+                  liftIO (sendInput Abort) >> setPending
+              | c `elem` ['f', 'F'] ->
+                  liftIO (sendInput Fanout) >> setPending
+              | c `elem` ['c', 'C'] -> do
+                  x <- preuse headStateL
+                  case x of
+                    Just Initializing{} ->
+                      showCommitDialog client cardanoClient
+                    Just Open{} ->
+                      liftIO (sendInput Close) >> setPending
+                    _ ->
+                      pure ()
+              | c `elem` ['n', 'N'] ->
+                  handleNewTxEvent client cardanoClient
+              | otherwise ->
+                  pure ()
+        _ -> pure ()
+      -- Not connected
+      Nothing -> case e of
+        -- Quit
+        EvKey (KChar 'c') [MCtrl] -> halt
+        EvKey (KChar 'd') [MCtrl] -> halt
+        EvKey (KChar 'q') [] -> halt
+        _ -> pure ()
   e ->
-    continue $ s & warn ("unhandled event: " <> show e)
+    warn ("unhandled event: " <> show e)
 
-setPending :: State -> EventM n (Next State)
-setPending s =
-  case s ^? pendingL of
-    Just Pending -> do
-      continue $ s & info "Transition already pending"
-    Just NotPending -> do
-      continue $ s & initPending
-    -- XXX: Not connected is impossible here (smell -> refactor)
-    Nothing -> continue s
+setPending :: EventM n State ()
+setPending = do
+  x <- use pendingL
+  case x of
+    Pending -> do
+      modify $ info "Transition already pending"
+    NotPending -> do
+      modify initPending
 
 handleAppEvent ::
   State ->
@@ -410,44 +411,42 @@ handleAppEvent s = \case
 handleDialogEvent ::
   forall s e n.
   (n ~ Name, e ~ HydraEvent Tx) =>
-  (Text, Form s e n, State -> s -> EventM n (Next State)) ->
-  State ->
+  (Text, Form s e n, s -> EventM n State ()) ->
   Vty.Event ->
-  EventM n (Next State)
-handleDialogEvent (title, form, submit) s = \case
+  EventM n State ()
+handleDialogEvent (title, form, submit) = \case
   -- NOTE: Field focus is changed using Tab / Shift-Tab, but arrows are more
   -- intuitive, so we forward them. Same for Space <-> Enter
   EvKey KUp [] ->
-    handleDialogEvent (title, form, submit) s (EvKey KBackTab [])
+    handleDialogEvent (title, form, submit) (EvKey KBackTab [])
   EvKey KDown [] ->
-    handleDialogEvent (title, form, submit) s (EvKey (KChar '\t') [])
+    handleDialogEvent (title, form, submit) (EvKey (KChar '\t') [])
   EvKey KEsc [] ->
-    continue $ s & dialogStateL .~ NoDialog
+    dialogStateL .= NoDialog
   EvKey KEnter [] -> do
     case invalidFields form of
-      [] -> submit s (formState form)
-      fs -> continue $ s & warn ("Invalid fields: " <> Text.intercalate ", " fs)
+      [] -> submit (formState form)
+      fs -> modify $ warn ("Invalid fields: " <> Text.intercalate ", " fs)
   EvKey (KChar c) _
     | c `elem` ['<'] ->
-        scroll s Up *> continue s
+        scroll Up
     | c `elem` ['>'] ->
-        scroll s Down *> continue s
+        scroll Down
     | c `elem` ['h', 'H'] ->
-        continue $ s & feedbackStateL .~ Full
+        feedbackStateL .= Full
     | c `elem` ['s', 'S'] ->
-        continue $ s & feedbackStateL .~ Short
+        feedbackStateL .= Short
   e -> do
-    form' <- handleFormEvent (VtyEvent e) form
-    continue $ s & dialogStateL .~ Dialog title form' submit
+    handleFormEvent (VtyEvent e)
+    dialogStateL .= Dialog title form' submit
 
 showCommitDialog ::
   Client Tx IO ->
   CardanoClient ->
-  State ->
-  EventM n (Next State)
-showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, networkId} s = do
+  EventM n State ()
+showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, networkId} = do
   utxo <- liftIO $ queryUTxOByAddress [ourAddress]
-  continue $ s & dialogStateL .~ commitDialog (UTxO.toMap utxo)
+  dialogStateL .= commitDialog (UTxO.toMap utxo)
  where
   ourAddress =
     makeShelleyAddress
@@ -460,32 +459,36 @@ showCommitDialog Client{sk, externalCommit} CardanoClient{queryUTxOByAddress, ne
    where
     title = "Select UTXO to commit"
     form = newForm (utxoCheckboxField u) ((,False) <$> u)
-    submit s' selected = do
+    submit selected = do
       let commitUTxO = UTxO $ Map.mapMaybe (\(v, p) -> if p then Just v else Nothing) selected
-      liftIO (externalCommit commitUTxO) >> setPending (s' & dialogStateL .~ NoDialog)
+      liftIO (externalCommit commitUTxO) >> do
+        dialogStateL .= NoDialog
+        setPending
 
 handleNewTxEvent ::
   Client Tx IO ->
   CardanoClient ->
-  State ->
-  EventM n (Next State)
-handleNewTxEvent Client{sendInput, sk} CardanoClient{networkId} s = case s ^? headStateL of
-  Just Open{utxo} ->
-    continue $ s & dialogStateL .~ transactionBuilderDialog utxo
-  _ ->
-    continue $ s & warn "Invalid command."
+  EventM n State ()
+handleNewTxEvent Client{sendInput, sk} CardanoClient{networkId} = do
+  s <- view id
+  x <- preuse headStateL
+  case x of
+    Just Open{utxo} ->
+      dialogStateL .= transactionBuilderDialog utxo
+    _ ->
+      modify $ warn "Invalid command."
  where
   vk = getVerificationKey sk
 
   transactionBuilderDialog utxo =
     Dialog title form submit
    where
-    myUTxO = myAvailableUTxO networkId vk s
+    myUTxO = myAvailableUTxO networkId vk
     title = "Select UTXO to spend"
     -- FIXME: This crashes if the utxo is empty
-    form = newForm (utxoRadioField myUTxO) (Prelude.head (Map.toList myUTxO))
-    submit s' input =
-      continue $ s' & dialogStateL .~ recipientsDialog input utxo
+    form = newForm (utxoRadioField (myUTxO s)) (Prelude.head (Map.toList myUTxO))
+    submit input =
+      dialogStateL .= recipientsDialog input utxo
 
   recipientsDialog input (UTxO utxo) =
     Dialog title form submit
@@ -497,8 +500,8 @@ handleNewTxEvent Client{sendInput, sk} CardanoClient{networkId} s = case s ^? he
           getRecipientAddress TxOut{txOutAddress = addr} = addr
        in newForm [field] (Prelude.head addresses)
 
-    submit s' recipient =
-      continue $ s' & dialogStateL .~ amountDialog input recipient
+    submit recipient =
+      dialogStateL .= amountDialog input recipient
 
   amountDialog input@(_, TxOut{txOutValue = v}) recipient =
     Dialog title form submit
@@ -514,10 +517,10 @@ handleNewTxEvent Client{sendInput, sk} CardanoClient{networkId} s = case s ^? he
 
     submit s' amount = do
       case mkSimpleTx input (recipient, lovelaceToValue $ Lovelace amount) sk of
-        Left e -> continue $ s' & warn ("Failed to construct tx, contact @_ktorz_ on twitter: " <> show e)
+        Left e -> warn ("Failed to construct tx, contact @_ktorz_ on twitter: " <> show e)
         Right tx -> do
           liftIO (sendInput (NewTx tx))
-          continue $ s' & dialogStateL .~ NoDialog
+          dialogStateL .~ NoDialog
 
 --
 -- View
@@ -528,9 +531,10 @@ fullFeedbackViewportName = "full-feedback-view-port"
 shortFeedbackViewportName :: Name
 shortFeedbackViewportName = "short-feedback-view-port"
 
-scroll :: State -> Direction -> EventM Name ()
-scroll s direction =
-  case s ^? feedbackStateL of
+scroll :: Direction -> EventM Name State ()
+scroll direction = do
+  x <- (^?) feedbackStateL
+  case x of
     Just Full -> do
       let vp = viewportScroll fullFeedbackViewportName
       vScrollPage vp direction
@@ -890,8 +894,8 @@ runWithVty buildVty options@Options{hydraNodeHost, cardanoNetworkId, cardanoNode
       { appDraw = draw client cardanoClient
       , appChooseCursor = showFirstCursor
       , appHandleEvent = handleEvent client cardanoClient
-      , appStartEvent = pure
-      , appAttrMap = style
+      , appStartEvent = pure ()
+      , appAttrMap = Hydra.TUI.style
       }
   initialState now =
     Disconnected
