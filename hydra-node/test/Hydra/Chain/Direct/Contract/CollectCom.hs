@@ -34,7 +34,7 @@ import Hydra.Chain.Direct.Tx (
   mkHeadOutput,
   mkInitialOutput,
  )
-import qualified Hydra.Contract.Commit as Commit
+import Hydra.Plutus (commitValidatorScript)
 import Hydra.Contract.Error (toErrorCode)
 import Hydra.Contract.HeadError (HeadError (..))
 import qualified Hydra.Contract.HeadState as Head
@@ -166,7 +166,7 @@ healthyCommitOutput party committed =
   cardanoKey = genVerificationKey `genForParty` party
 
   commitScript =
-    fromPlutusScript Commit.validatorScript
+    fromPlutusScript commitValidatorScript
   commitAddress =
     mkScriptAddress @PlutusScriptV2 testNetworkId commitScript
   commitValue =
