@@ -59,7 +59,7 @@ import Hydra.Ledger (IsTx (..))
 import Hydra.Ledger.Cardano (mkSimpleTx)
 import Hydra.Party (Party (..))
 import Hydra.Snapshot (Snapshot (..))
-import Hydra.TUI.Model (DialogState (..), FeedbackState (..), HeadState (..), Name, Pending (..), Severity (..), State (..), UserFeedback (..), dialogStateL, feedbackL, feedbackStateL, headIdL, headStateL, meL, nodeHostL, nowL, partiesL, peersL, pendingL, utxoL)
+import Hydra.TUI.Model (DialogState (..), FeedbackState (..), HeadState (..), Name, Pending (..), Severity (..), State (..), UserFeedback (..), dialogStateL, feedbackL, feedbackStateL, headIdL, headStateL, meL, nodeHostL, nowL, partiesL, peersL, pendingL, utxoL, Peers(..))
 import Hydra.TUI.Options (Options (..))
 import Lens.Micro (Lens', lens, (%~), (.~), (?~), (^.), (^?), _head)
 import Paths_hydra_tui (version)
@@ -192,7 +192,7 @@ handleAppEvent s = \case
     Connected
       { nodeHost = s ^. nodeHostL
       , me = Nothing
-      , peers = []
+      , peers = mempty
       , headState = Idle
       , dialogState = NoDialog
       , feedbackState = Short
@@ -209,9 +209,9 @@ handleAppEvent s = \case
   Update TimedServerOutput{output = Greetings{me}} ->
     s & meL ?~ me
   Update TimedServerOutput{output = PeerConnected p} ->
-    s & peersL %~ \cp -> nub $ cp <> [p]
+    s & peersL %~ \(Peers cp) -> Peers $ nub $ cp <> [p]
   Update TimedServerOutput{output = (PeerDisconnected p)} ->
-    s & peersL %~ \cp -> cp \\ [p]
+    s & peersL %~ \(Peers cp) -> Peers $ cp \\ [p]
   Update TimedServerOutput{time, output = CommandFailed{clientInput}} -> do
     s
       & warn' time ("Invalid command: " <> show clientInput)
@@ -687,7 +687,7 @@ draw Client{sk} CardanoClient{networkId} s =
 
   drawPeers = case s of
     Disconnected{} -> emptyWidget
-    Connected{peers} -> vBox $ str "Peers connected to our node:" : map drawShow peers
+    Connected{peers} -> vBox $ str "Peers connected to our node:" : map drawShow (fromPeers peers)
 
   drawHex :: SerialiseAsRawBytes a => a -> Widget n
   drawHex = txt . (" - " <>) . serialiseToRawBytesHexText

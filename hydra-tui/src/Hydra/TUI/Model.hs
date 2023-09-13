@@ -21,6 +21,10 @@ import Lens.Micro.TH (makeLensesFor)
 
 data FeedbackState = Short | Full
 
+newtype Peers = Peers {fromPeers :: [NodeId]}
+  deriving stock (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
+
 data State
   = Disconnected
       { nodeHost :: Host
@@ -29,7 +33,7 @@ data State
   | Connected
       { me :: Maybe Party -- TODO(SN): we could make a nicer type if ClientConnected is only emited of 'Hydra.Client' upon receiving a 'Greeting'
       , nodeHost :: Host
-      , peers :: [NodeId]
+      , peers :: Peers
       , headState :: HeadState
       , dialogState :: DialogState
       , feedbackState :: FeedbackState
