@@ -74,6 +74,7 @@ library
   exposed-modules:
     Hydra.Client
     Hydra.TUI
+    Hydra.TUI.Model
     Hydra.TUI.Options
 
   other-modules:   Paths_hydra_tui
