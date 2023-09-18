@@ -61,6 +61,7 @@ import Hydra.Party (Party (..))
 import Hydra.Snapshot (Snapshot (..))
 import Hydra.TUI.Model (DialogState (..), FeedbackState (..), HeadState (..), Name, Pending (..), Severity (..), State (..), UserFeedback (..), dialogStateL, feedbackL, feedbackStateL, headIdL, headStateL, meL, nodeHostL, nowL, partiesL, peersL, pendingL, utxoL, Peers(..))
 import Hydra.TUI.Options (Options (..))
+import Hydra.TUI.Widgets (drawPeers, drawHex)
 import Lens.Micro (Lens', lens, (%~), (.~), (?~), (^.), (^?), _head)
 import Paths_hydra_tui (version)
 import qualified Prelude
@@ -493,7 +494,7 @@ draw Client{sk} CardanoClient{networkId} s =
     hLimit 50 $
       vBox
         [ padLeftRight 1 $ tuiVersion <+> padLeft (Pad 1) nodeStatus
-        , padLeftRight 1 drawPeers
+        , padLeftRight 1 $ drawPeers $ s ^. peersL
         , hBorder
         , padLeftRight 1 ownParty
         , padLeftRight 1 ownAddress
@@ -684,16 +685,6 @@ draw Client{sk} CardanoClient{networkId} s =
     case s ^? meL of
       Just (Just me) | p == me -> withAttr own $ drawHex vkey
       _ -> drawHex vkey
-
-  drawPeers = case s of
-    Disconnected{} -> emptyWidget
-    Connected{peers} -> vBox $ str "Peers connected to our node:" : map drawShow (fromPeers peers)
-
-  drawHex :: SerialiseAsRawBytes a => a -> Widget n
-  drawHex = txt . (" - " <>) . serialiseToRawBytesHexText
-
-  drawShow :: forall a n. Show a => a -> Widget n
-  drawShow = txt . (" - " <>) . show
 
 renderTime :: (Ord t, Num t, FormatTime t) => t -> String
 renderTime r

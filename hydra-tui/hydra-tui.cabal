@@ -76,6 +76,7 @@ library
     Hydra.TUI
     Hydra.TUI.Model
     Hydra.TUI.Options
+    Hydra.TUI.Widgets
 
   other-modules:   Paths_hydra_tui
   build-depends:
