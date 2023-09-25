@@ -64,22 +64,68 @@ report typ msg = do
 report' :: MonadState State m => UTCTime -> Severity -> Text -> m ()
 report' time typ msg = feedbackL %= (UserFeedback typ msg time :)
 
-stopPending :: MonadState State m => m ()
-stopPending = pendingL .= NotPending
+stopPending :: MonadState Pending m => m ()
+stopPending = id .= NotPending
 
-initPending :: MonadState State m => m ()
-initPending = pendingL .= Pending
+initPending :: MonadState Pending m => m ()
+initPending = id .= Pending
 
 --
 -- Update
 --
+
+handleVtyEventDisconnected :: Vty.Event -> EventM Name State ()
+handleVtyEventDisconnected e = case e of
+  EvKey (KChar 'c') [MCtrl] -> halt
+  EvKey (KChar 'd') [MCtrl] -> halt
+  EvKey (KChar 'q') [] -> halt
+  _ -> pure ()
+
+handleHydraEventDisconnected :: HydraEvent Tx -> EventM Name State ()
+handleHydraEventDisconnected = \case
+  ClientConnected -> do
+     connectedStateL .= (Connected $ Connection
+       { me = Unidentified
+       , peers = []
+       , headState = Idle
+       , pending = NotPending
+       , hydraHeadId = Nothing
+       })
+  _ -> pure ()
+
+handleBrickEventDisconnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
+handleBrickEventDisconnected = \case
+  AppEvent e -> handleHydraEventDisconnected e
+  VtyEvent e -> handleVtyEventDisconnected e
+  _ -> pure ()
+
+handleVtyEventConnected :: Vty.Event -> EventM Name State ()
+handleVtyEventConnected _ = pure ()
+
+handleHydraEventConnected :: HydraEvent Tx -> EventM Name State ()
+handleHydraEventConnected = \case
+  Update TimedServerOutput{output = Greetings{me}} -> connectedStateL . connectionL . meL .= Identified me
+  _ -> pure ()
+
+handleBrickEventConnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
+handleBrickEventConnected = \case
+  AppEvent e -> handleHydraEventDisconnected e
+  VtyEvent e -> handleVtyEventDisconnected e
+  _ -> pure ()
+
 
 handleEvent ::
   Client Tx IO ->
   CardanoClient ->
   BrickEvent Name (HydraEvent Tx) ->
   EventM Name State ()
-handleEvent client cardanoClient = \case
+handleEvent client cardanoClient e = use connectedStateL >>= \case
+    Disconnected -> handleBrickEventDisconnected e
+    Connected c -> handleBrickEventConnected e
+
+{--
+  pure x
+
   AppEvent e -> handleAppEvent e
   VtyEvent e -> do
     x <- preuse dialogStateL
@@ -117,7 +163,7 @@ handleEvent client cardanoClient = \case
                     Just Open{} ->
                       liftIO (sendInput client Close) >> setPending
                     _ ->
-                      pure ()
+--                      pure ()
               | c `elem` ['n', 'N'] ->
                   pure ()
                   --handleNewTxEvent client cardanoClient
@@ -150,7 +196,7 @@ handleAppEvent = \case
     t <- use nowL
     id .= Connected
       { nodeHost = n
-      , me = Nothing
+      , me = Unidentified
       , peers = []
       , headState = Idle
       , dialogState = NoDialog
@@ -483,3 +529,4 @@ myAvailableUTxO = do
        in pure $ Map.filter (\TxOut{txOutAddress = addr} -> addr == myAddress) u'
     _ ->
       pure mempty
+--}

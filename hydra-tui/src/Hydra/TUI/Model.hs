@@ -23,20 +23,24 @@ import Lens.Micro.TH (makeLensesFor)
 --
 data FeedbackVerbosity = Short | Full
 
-data State
+data State = State {
+  nodeHost :: Host,
+  now :: UTCTime,
+  connectedState :: ConnectedState,
+  feedbackState :: FeedbackVerbosity,
+  feedback :: [UserFeedback]
+}
+
+data ConnectedState
   = Disconnected
-      { nodeHost :: Host
-      , now :: UTCTime
-      }
-  | Connected
-      { me :: Maybe Party -- TODO(SN): we could make a nicer type if ClientConnected is only emited of 'Hydra.Client' upon receiving a 'Greeting'
-      , nodeHost :: Host
+  | Connected { connection :: Connection }
+
+data IdentifiedState = Unidentified | Identified Party
+
+data Connection = Connection
+      { me :: IdentifiedState
       , peers :: [NodeId]
       , headState :: HeadState
-      , dialogState :: DialogState
-      , feedbackState :: FeedbackVerbosity
-      , feedback :: [UserFeedback]
-      , now :: UTCTime
       , pending :: Pending
       , hydraHeadId :: Maybe HeadId
       }
@@ -88,7 +92,7 @@ data HeadState
 type Name = Text
 
 makeLensesFor
-  [ ("me", "meL")
+  [ ("connectedState", "connectedStateL")
   , ("nodeHost", "nodeHostL")
   , ("peers", "peersL")
   , ("headState", "headStateL")
@@ -97,10 +101,19 @@ makeLensesFor
   , ("feedback", "feedbackL")
   , ("feedbackState", "feedbackStateL")
   , ("now", "nowL")
-  , ("pending", "pendingL")
   , ("hydraHeadId", "hydraHeadIdL")
   ]
   ''State
+
+makeLensesFor
+  [ ("connection", "connectionL") ]
+  ''ConnectedState
+
+makeLensesFor
+  [ ("pending", "pendingL")
+  , ("me", "meL")
+  ]
+  ''Connection
 
 makeLensesFor
   [ ("remainingParties", "remainingPartiesL")

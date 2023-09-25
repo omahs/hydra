@@ -63,7 +63,9 @@ own :: AttrName
 own = attrName "own"
 
 draw :: Client Tx m -> CardanoClient -> State -> [Widget Name]
-draw Client{sk} CardanoClient{networkId} s =
+draw Client{sk} CardanoClient{networkId} s = [drawTUIVersion version, maybeWidget drawMeIfIdentified (s ^? connectedStateL . connectionL . meL)]
+
+{--
   pure $
     withBorderStyle ascii $
       joinBorders $
@@ -133,12 +135,6 @@ draw Client{sk} CardanoClient{networkId} s =
 
     ownAddress =
       str "Address " <+> drawAddress (mkVkAddress networkId vk)
-
-    nodeStatus =
-      case s of
-        Disconnected{nodeHost} -> withAttr negative $ str $ "connecting to " <> show nodeHost
-        Connected{nodeHost} -> withAttr positive $ str $ "connected to " <> show nodeHost
-
   commandList =
     case s ^? dialogStateL of
       Just Dialog{} -> ["[Esc] Cancel", "[↑] Move Up", "[↓] Move Down", "[Space] Select", "[Enter] Confirm"]
@@ -298,7 +294,7 @@ draw Client{sk} CardanoClient{networkId} s =
   drawPeersIfConnected :: Widget n
   drawPeersIfConnected = case s of
     Disconnected{} -> emptyWidget
-    Connected{peers} -> drawPeers peers
+    Connected(Connection{peers}) -> drawPeers peers
 
 drawUserFeedbackFull :: UserFeedback -> Widget n
 drawUserFeedbackFull UserFeedback{message, severity, time} =
@@ -316,6 +312,18 @@ drawHeadId x = txt $ "Head id: " <> serialiseToRawBytesHexText x
 
 drawParties :: (Party -> Widget n) -> [Party] -> Widget n
 drawParties f xs = vBox $ str "Head participants:" : map f xs
+
+--}
+
+drawMeIfIdentified :: IdentifiedState -> Widget n
+drawMeIfIdentified (Identified Party{vkey}) = str "Party " <+> withAttr own (txt $ serialiseToRawBytesHexText vkey)
+drawMeIfIdentified Unidentified = emptyWidget
+
+
+drawConnectedStatus :: State -> Widget n
+drawConnectedStatus State{nodeHost,connectedState} = case connectedState of
+  Disconnected -> withAttr negative $ str $ "connecting to " <> show nodeHost
+  Connected _ -> withAttr positive $ str $ "connected to " <> show nodeHost
 
 drawParty :: AttrName -> Party -> Widget n
 drawParty x Party{vkey} = withAttr x $ drawHex vkey
@@ -343,7 +351,6 @@ renderTime r
 --
 -- Style
 --
---}
 style :: State -> AttrMap
 style _ =
   attrMap

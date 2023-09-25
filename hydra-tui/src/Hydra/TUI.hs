@@ -43,10 +43,13 @@ runWithVty buildVty options@Options{hydraNodeHost, cardanoNetworkId, cardanoNode
       , appStartEvent = pure ()
       , appAttrMap = Hydra.TUI.Drawing.style
       }
-  initialState now =
-    Disconnected
-      { nodeHost = hydraNodeHost
+  initialState now = State {
+       nodeHost = hydraNodeHost
       , now
+      , connectedState = Disconnected
+      , feedbackState = Full
+      , feedback = mempty
+
       }
 
   cardanoClient = mkCardanoClient cardanoNetworkId cardanoNodeSocket

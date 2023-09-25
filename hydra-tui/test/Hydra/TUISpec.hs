@@ -55,6 +55,10 @@ spec :: Spec
 spec = do
   context "end-to-end smoke tests" $ do
     around setupNodeAndTUI $ do
+      it "responds to a quit event" $
+        \TUITest{sendInputEvent} -> do
+          threadDelay 1
+          sendInputEvent $ EvKey (KChar 'q') []
       it "starts & renders" $
         \TUITest{sendInputEvent, shouldRender} -> do
           threadDelay 1
