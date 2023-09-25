@@ -11,6 +11,7 @@ import Hydra.Prelude hiding (Down, State, padLeft)
 import Brick
 import Hydra.Cardano.Api
 
+import Hydra.Network (NodeId)
 import Brick.Forms (
   focusedFormInputAttr,
   invalidFormInputAttr,
@@ -24,7 +25,7 @@ import Data.Text (chunksOf)
 import qualified Data.Text as Text
 import Data.Time (defaultTimeLocale, formatTime)
 import Data.Time.Format (FormatTime)
-import Data.Version (showVersion)
+import Data.Version (showVersion, Version)
 import Graphics.Vty (
   brightBlue,
   green,
@@ -41,6 +42,7 @@ import Lens.Micro ((^.), (^?), _head)
 import Paths_hydra_tui (version)
 import qualified Prelude
 import Hydra.TUI.Model
+import Hydra.Chain (HeadId)
 
 severityToAttr :: Severity -> AttrName
 severityToAttr = \case
@@ -74,14 +76,13 @@ draw Client{sk} CardanoClient{networkId} s =
   drawFullHistoryMode =
     vBox
       [ drawHeadState
-      , let panel = drawFullFeedback
-            cmds =
+      , let cmds =
               [ "[<] scroll up"
               , "[>] scroll down"
               , "[S]hort Feedback Mode"
               ]
          in hBox
-              [ hLimit 150 $ viewport fullFeedbackViewportName Vertical (vBox panel)
+              [ hLimit 150 $ viewport fullFeedbackViewportName Vertical drawFullFeedback
               , vBorder
               , vBox
                   [ padLeftRight 1 . vBox $ (str <$> commandList)
@@ -116,15 +117,14 @@ draw Client{sk} CardanoClient{networkId} s =
   drawInfo =
     hLimit 50 $
       vBox
-        [ padLeftRight 1 $ tuiVersion <+> padLeft (Pad 1) nodeStatus
-        , padLeftRight 1 drawPeers
+        [ padLeftRight 1 $ drawTUIVersion version <+> padLeft (Pad 1) nodeStatus
+        , padLeftRight 1 drawPeersIfConnected
         , hBorder
         , padLeftRight 1 ownParty
         , padLeftRight 1 ownAddress
-        , padLeftRight 1 drawParties
+        , padLeftRight 1 $ maybeWidget drawPartiesWithOwnHighlighted (s ^? headStateL . partiesL)
         ]
    where
-    tuiVersion = str "Hydra TUI " <+> str (showVersion version)
 
     ownParty =
       case s ^? meL of
@@ -179,7 +179,7 @@ draw Client{sk} CardanoClient{networkId} s =
               , padLeftRight 1 $
                   padTop (Pad 1) $
                     str "Waiting for parties to commit:"
-                      <=> vBox (map drawParty remainingParties)
+                      <=> vBox (map drawPartyWithOwnHighlighted remainingParties)
               ]
               commandList
           Just Open{utxo} ->
@@ -235,14 +235,10 @@ draw Client{sk} CardanoClient{networkId} s =
               [ txt "Head status: "
                   <+> withAttr infoA (txt $ Prelude.head (words $ show headState))
                   <+> drawPending
-              , drawHeadId (headState ^? headIdL)
+              , maybeWidget drawHeadId (headState ^? headIdL)
               ]
         , hBorder
         ]
-
-    drawHeadId = \case
-      Nothing -> emptyWidget
-      Just headId -> txt $ "Head id: " <> serialiseToRawBytesHexText headId
 
   drawUTxO utxo =
     let byAddress =
@@ -276,48 +272,68 @@ draw Client{sk} CardanoClient{networkId} s =
       , padLeftRight 1 $ vBox (str <$> cmds)
       ]
 
-  drawFullFeedback =
+  drawFullFeedback :: Widget n
+  drawFullFeedback = vBox $
     case s ^? feedbackL of
-      Just feedbacks -> vBox . feedbackToWidget <$> feedbacks
+      Just feedbacks -> drawUserFeedbackFull <$> feedbacks
        where
-        feedbackToWidget =
-          ( \UserFeedback{message, severity, time} ->
-              let feedbackText = show time <> " | " <> message
-                  feedbackChunks = chunksOf 150 feedbackText
-                  feedbackDecorator = withAttr (severityToAttr severity) . txt
-               in feedbackDecorator <$> feedbackChunks
-          )
       Nothing ->
         -- Reserves the space and not have this area collapse
         [txt ""]
 
+  drawShortFeedback :: Widget n
   drawShortFeedback =
     case s ^? (feedbackL . _head) of
-      Just UserFeedback{message, severity, time} ->
-        withAttr (severityToAttr severity) . str . toString $ (show time <> " | " <> message)
+      Just x -> drawUserFeedbackShort x
       Nothing ->
         -- Reserves the space and not have this area collapse
         str ""
 
-  drawParties =
-    case s ^? headStateL . partiesL of
-      Nothing -> emptyWidget
-      Just ps -> vBox $ str "Head participants:" : map drawParty ps
+  drawPartyWithOwnHighlighted :: Party -> Widget n
+  drawPartyWithOwnHighlighted p = drawParty (if s ^? meL == Just (Just p) then own else mempty) p
 
-  drawParty p@Party{vkey} =
-    case s ^? meL of
-      Just (Just me) | p == me -> withAttr own $ drawHex vkey
-      _ -> drawHex vkey
+  drawPartiesWithOwnHighlighted :: [Party] -> Widget n
+  drawPartiesWithOwnHighlighted = drawParties drawPartyWithOwnHighlighted
 
-  drawPeers = case s of
+  drawPeersIfConnected :: Widget n
+  drawPeersIfConnected = case s of
     Disconnected{} -> emptyWidget
-    Connected{peers} -> vBox $ str "Peers connected to our node:" : map drawShow peers
+    Connected{peers} -> drawPeers peers
 
-  drawHex :: SerialiseAsRawBytes a => a -> Widget n
-  drawHex = txt . (" - " <>) . serialiseToRawBytesHexText
+drawUserFeedbackFull :: UserFeedback -> Widget n
+drawUserFeedbackFull UserFeedback{message, severity, time} =
+  let feedbackText = show time <> " | " <> message
+      feedbackChunks = chunksOf 150 feedbackText
+      feedbackDecorator = withAttr (severityToAttr severity) . txt
+  in vBox $ fmap feedbackDecorator feedbackChunks
 
-  drawShow :: forall a n. Show a => a -> Widget n
-  drawShow = txt . (" - " <>) . show
+drawUserFeedbackShort :: UserFeedback -> Widget n
+drawUserFeedbackShort (UserFeedback{message, severity, time}) =
+  withAttr (severityToAttr severity) . str . toString $ (show time <> " | " <> message)
+
+drawHeadId :: HeadId -> Widget n
+drawHeadId x = txt $ "Head id: " <> serialiseToRawBytesHexText x
+
+drawParties :: (Party -> Widget n) -> [Party] -> Widget n
+drawParties f xs = vBox $ str "Head participants:" : map f xs
+
+drawParty :: AttrName -> Party -> Widget n
+drawParty x Party{vkey} = withAttr x $ drawHex vkey
+
+drawPeers :: [NodeId] -> Widget n
+drawPeers peers = vBox $ str "Peers connected to our node:" : map drawShow peers
+
+maybeWidget :: (a -> Widget n) -> Maybe a -> Widget n
+maybeWidget = maybe emptyWidget
+
+drawTUIVersion :: Version -> Widget n
+drawTUIVersion v = str "Hydra TUI " <+> str (showVersion v)
+
+drawHex :: SerialiseAsRawBytes a => a -> Widget n
+drawHex = txt . (" - " <>) . serialiseToRawBytesHexText
+
+drawShow :: forall a n. Show a => a -> Widget n
+drawShow = txt . (" - " <>) . show
 
 renderTime :: (Ord t, Num t, FormatTime t) => t -> String
 renderTime r
