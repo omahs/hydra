@@ -44,39 +44,39 @@ import Lens.Micro.Mtl (preuse, (.=), assign, use, (%=), (?=))
 import qualified Prelude
 import Hydra.TUI.Model
 
-info :: MonadState State m => Text -> m ()
+info :: Text -> EventM n State ()
 info = report Info
 
-info' :: MonadState State m => UTCTime -> Text -> m ()
+info' :: UTCTime -> Text -> EventM n Connection ()
 info' time = report' time Info
 
-warn :: MonadState State m => Text -> m ()
+warn :: Text -> EventM n State ()
 warn = report Error
 
-warn' :: MonadState State m => UTCTime -> Text -> m ()
+warn' :: UTCTime -> Text -> EventM n Connection ()
 warn' time = report' time Error
 
-report :: MonadState State m => Severity -> Text -> m ()
+report :: Severity -> Text -> EventM n State ()
 report typ msg = do
   x <- use nowL
-  report' x typ msg
+  zoom (connectedStateL . connectionL) $ report' x typ msg
 
-report' :: MonadState State m => UTCTime -> Severity -> Text -> m ()
+report' :: UTCTime -> Severity -> Text -> EventM n Connection ()
 report' time typ msg = feedbackL %= (UserFeedback typ msg time :)
 
-stopPending :: MonadState Pending m => m ()
-stopPending = id .= NotPending
+stopPending :: EventM n Connection ()
+stopPending = pendingL .= NotPending
 
-initPending :: MonadState Pending m => m ()
-initPending = id .= Pending
+initPending :: EventM n Connection ()
+initPending = pendingL .= Pending
 
 --
 -- Update
 --
 
 
-handleVtyEventDisconnected :: Vty.Event -> EventM Name State ()
-handleVtyEventDisconnected e = case e of
+handleVtyQuitEvents :: Vty.Event -> EventM Name State ()
+handleVtyQuitEvents = \case
   EvKey (KChar 'c') [MCtrl] -> halt
   EvKey (KChar 'd') [MCtrl] -> halt
   EvKey (KChar 'q') [] -> halt
@@ -91,38 +91,66 @@ handleHydraEventDisconnected = \case
        , headState = Idle
        , pending = NotPending
        , hydraHeadId = Nothing
+       , feedback = mempty
        })
   _ -> pure ()
 
 handleBrickEventDisconnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
 handleBrickEventDisconnected = \case
   AppEvent e -> handleHydraEventDisconnected e
-  VtyEvent e -> handleVtyEventDisconnected e
+  VtyEvent e -> handleVtyQuitEvents e
   _ -> pure ()
 
-handleVtyEventConnected :: Vty.Event -> EventM Name State ()
-handleVtyEventConnected _ = pure ()
-
-handleHydraEventConnected :: HydraEvent Tx -> EventM Name State ()
-handleHydraEventConnected = \case
-  Update TimedServerOutput{output = Greetings{me}} -> connectedStateL . connectionL . meL .= Identified me
+handleVtyLifecycleEvents :: Client Tx IO -> Vty.Event -> EventM Name Connection ()
+handleVtyLifecycleEvents Client{sendInput} = \case
+  EvKey (KChar 'i') [] -> liftIO (sendInput Init)
+  EvKey (KChar 'a') [] -> liftIO (sendInput Abort)
+  EvKey (KChar 'f') [] -> liftIO (sendInput Fanout)
   _ -> pure ()
 
-handleBrickEventConnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
-handleBrickEventConnected = \case
-  AppEvent e -> handleHydraEventConnected e
-  VtyEvent e -> handleVtyEventConnected e
+handleHydraLifecycleEvents :: HydraEvent Tx -> EventM Name Connection ()
+handleHydraLifecycleEvents = \case
+  Update TimedServerOutput{output = Greetings{me}} -> meL .= Identified me
+  Update TimedServerOutput{output = PeerConnected p} -> peersL %= \cp -> nub $ cp <> [p]
+  Update TimedServerOutput{output = PeerDisconnected p} -> peersL %= \cp -> cp \\ [p]
+  Update TimedServerOutput{time, output = HeadIsInitializing{parties, headId}} -> do
+      let utxo = mempty
+          ps = toList parties
+
+      headStateL .= Initializing{parties = ps, remainingParties = ps, utxo, headId = headId}
+      stopPending
+  Update TimedServerOutput{time, output = HeadIsAborted{}} -> do
+      headStateL .= Idle
+      info' time "Head aborted, back to square one."
+      stopPending
+  Update TimedServerOutput{time, output = CommandFailed{clientInput}} -> do
+    warn' time ("Invalid command: " <> show clientInput)
+    stopPending
   _ -> pure ()
 
+
+handleBrickLifecycleEvents :: Client Tx IO -> BrickEvent w (HydraEvent Tx) -> EventM Name State ()
+handleBrickLifecycleEvents client x = zoom (connectedStateL . connectionL) $ case x of
+  AppEvent e -> handleHydraLifecycleEvents e
+  VtyEvent e -> handleVtyLifecycleEvents client e
+  _ -> pure ()
+
+handleGlobalEvents :: BrickEvent Name (HydraEvent Tx) -> EventM Name State ()
+handleGlobalEvents = \case
+  AppEvent _ -> pure ()
+  VtyEvent e -> handleVtyQuitEvents e
+  _ -> pure ()
 
 handleEvent ::
   Client Tx IO ->
   CardanoClient ->
   BrickEvent Name (HydraEvent Tx) ->
   EventM Name State ()
-handleEvent client cardanoClient e = use connectedStateL >>= \case
-    Disconnected -> handleBrickEventDisconnected e
-    Connected c -> handleBrickEventConnected e
+handleEvent client cardanoClient e = do
+    handleGlobalEvents e
+    use connectedStateL >>= \case
+      Disconnected -> handleBrickEventDisconnected e
+      Connected c -> handleBrickLifecycleEvents client e
 
 {--
   pure x

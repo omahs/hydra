@@ -63,14 +63,23 @@ own :: AttrName
 own = attrName "own"
 
 draw :: Client Tx m -> CardanoClient -> State -> [Widget Name]
-draw Client{sk} CardanoClient{networkId} s = pure $ withBorderStyle ascii $ joinBorders $ hBox
-  [ hLimit 50 $ vBox
-    [ drawTUIVersion version <+> padLeft (Pad 1) (drawConnectedStatus s)
-    , hBorder
-    , maybeWidget drawMeIfIdentified (s ^? connectedStateL . connectionL . meL)
+draw Client{sk} CardanoClient{networkId} s = pure $ withBorderStyle ascii $ joinBorders $ vBox
+  [ hBox
+    [ hLimit 50 $ vBox
+      [ drawTUIVersion version <+> padLeft (Pad 1) (drawConnectedStatus s)
+      , drawPeersIfConnected (s ^. connectedStateL)
+      , hBorder
+      , drawIfConnected (drawMeIfIdentified . me) (s ^. connectedStateL)
+      , drawMyAddress $ mkVkAddress networkId (getVerificationKey sk)
+      ]
+    , vBorder
+    , vBox [
+        drawHeadState (s ^. connectedStateL),
+        hBorder,
+        hLimit 50 $ padLeftRight 1 $ drawCommandList s
+      ]
     ]
-  , vBorder
-  , hLimit 50 $ padLeftRight 1 $ drawCommandList s
+  , maybeWidget drawUserFeedbackShort (s ^? connectedStateL . connectionL . feedbackL . _head)
   ]
 
 drawCommandList :: State -> Widget n
@@ -270,15 +279,6 @@ drawCommandList s = vBox . fmap txt $ case s ^. connectedStateL of
           | (addr, u) <- Map.toList byAddress
           ]
 
-  drawAddress addr
-    | mkVkAddress networkId vk == addr =
-        withAttr own widget
-    | otherwise =
-        widget
-   where
-    widget = txt $ ellipsize 40 $ serialiseAddress addr
-
-  ellipsize n t = Text.take (n - 2) t <> ".."
 
   withCommands panel cmds =
     hBox
@@ -310,10 +310,7 @@ drawCommandList s = vBox . fmap txt $ case s ^. connectedStateL of
   drawPartiesWithOwnHighlighted :: [Party] -> Widget n
   drawPartiesWithOwnHighlighted = drawParties drawPartyWithOwnHighlighted
 
-  drawPeersIfConnected :: Widget n
-  drawPeersIfConnected = case s of
-    Disconnected{} -> emptyWidget
-    Connected(Connection{peers}) -> drawPeers peers
+--}
 
 drawUserFeedbackFull :: UserFeedback -> Widget n
 drawUserFeedbackFull UserFeedback{message, severity, time} =
@@ -326,13 +323,30 @@ drawUserFeedbackShort :: UserFeedback -> Widget n
 drawUserFeedbackShort (UserFeedback{message, severity, time}) =
   withAttr (severityToAttr severity) . str . toString $ (show time <> " | " <> message)
 
-drawHeadId :: HeadId -> Widget n
-drawHeadId x = txt $ "Head id: " <> serialiseToRawBytesHexText x
-
 drawParties :: (Party -> Widget n) -> [Party] -> Widget n
 drawParties f xs = vBox $ str "Head participants:" : map f xs
 
---}
+
+drawIfConnected :: (Connection -> Widget n) -> ConnectedState -> Widget n
+drawIfConnected f = \case
+  Disconnected{} -> emptyWidget
+  Connected c -> f c
+
+drawPeersIfConnected :: ConnectedState -> Widget n
+drawPeersIfConnected = drawIfConnected (drawPeers . peers)
+
+drawHeadId :: HeadId -> Widget n
+drawHeadId x = txt $ "Head id: " <> serialiseToRawBytesHexText x
+
+
+drawMyAddress :: AddressInEra -> Widget n
+drawMyAddress addr = str "Address " <+> withAttr own (drawAddress addr)
+
+drawAddress :: AddressInEra -> Widget n
+drawAddress addr = txt (ellipsize 40 $ serialiseAddress addr)
+
+ellipsize :: Int -> Text -> Text
+ellipsize n t = Text.take (n - 2) t <> ".."
 
 drawMeIfIdentified :: IdentifiedState -> Widget n
 drawMeIfIdentified (Identified Party{vkey}) = str "Party " <+> withAttr own (txt $ serialiseToRawBytesHexText vkey)
@@ -367,6 +381,23 @@ renderTime r
   | r < 0 = "-" <> renderTime (negate r)
   | otherwise = formatTime defaultTimeLocale "%dd %Hh %Mm %Ss" r
 
+drawHeadState :: ConnectedState -> Widget n
+drawHeadState = \case
+  Disconnected{} -> emptyWidget
+  Connected(Connection{headState, pending = NotPending}) -> drawVBox headState $ txt ""
+  Connected(Connection{headState, pending = Pending}) -> drawVBox headState $ txt " (Transition pending)"
+  where
+   drawVBox headState drawPending =
+      vBox
+        [ padLeftRight 1 $
+            vBox
+              [ txt "Head status: "
+                  <+> withAttr infoA (txt $ Prelude.head (words $ show headState))
+                  <+> drawPending
+              , maybeWidget drawHeadId (headState ^? headIdL)
+              ]
+        , hBorder
+          ]
 --
 -- Style
 --

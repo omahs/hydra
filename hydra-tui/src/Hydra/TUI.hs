@@ -48,8 +48,6 @@ runWithVty buildVty options@Options{hydraNodeHost, cardanoNetworkId, cardanoNode
       , now
       , connectedState = Disconnected
       , feedbackState = Full
-      , feedback = mempty
-
       }
 
   cardanoClient = mkCardanoClient cardanoNetworkId cardanoNodeSocket

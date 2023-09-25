@@ -27,8 +27,7 @@ data State = State {
   nodeHost :: Host,
   now :: UTCTime,
   connectedState :: ConnectedState,
-  feedbackState :: FeedbackVerbosity,
-  feedback :: [UserFeedback]
+  feedbackState :: FeedbackVerbosity
 }
 
 data ConnectedState
@@ -41,6 +40,7 @@ data Connection = Connection
       { me :: IdentifiedState
       , peers :: [NodeId]
       , headState :: HeadState
+      , feedback :: [UserFeedback]
       , pending :: Pending
       , hydraHeadId :: Maybe HeadId
       }
@@ -94,10 +94,8 @@ type Name = Text
 makeLensesFor
   [ ("connectedState", "connectedStateL")
   , ("nodeHost", "nodeHostL")
-  , ("peers", "peersL")
   , ("clientState", "clientStateL")
   , ("dialogState", "dialogStateL")
-  , ("feedback", "feedbackL")
   , ("feedbackState", "feedbackStateL")
   , ("now", "nowL")
   , ("hydraHeadId", "hydraHeadIdL")
@@ -111,7 +109,9 @@ makeLensesFor
 makeLensesFor
   [ ("pending", "pendingL")
   , ("me", "meL")
+  , ("feedback", "feedbackL")
   , ("headState", "headStateL")
+  , ("peers", "peersL")
   ]
   ''Connection
 
