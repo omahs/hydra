@@ -95,7 +95,6 @@ makeLensesFor
   [ ("connectedState", "connectedStateL")
   , ("nodeHost", "nodeHostL")
   , ("peers", "peersL")
-  , ("headState", "headStateL")
   , ("clientState", "clientStateL")
   , ("dialogState", "dialogStateL")
   , ("feedback", "feedbackL")
@@ -112,6 +111,7 @@ makeLensesFor
 makeLensesFor
   [ ("pending", "pendingL")
   , ("me", "meL")
+  , ("headState", "headStateL")
   ]
   ''Connection
 

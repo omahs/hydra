@@ -63,7 +63,26 @@ own :: AttrName
 own = attrName "own"
 
 draw :: Client Tx m -> CardanoClient -> State -> [Widget Name]
-draw Client{sk} CardanoClient{networkId} s = [drawTUIVersion version, maybeWidget drawMeIfIdentified (s ^? connectedStateL . connectionL . meL)]
+draw Client{sk} CardanoClient{networkId} s = pure $ withBorderStyle ascii $ joinBorders $ hBox
+  [ hLimit 50 $ vBox
+    [ drawTUIVersion version <+> padLeft (Pad 1) (drawConnectedStatus s)
+    , hBorder
+    , maybeWidget drawMeIfIdentified (s ^? connectedStateL . connectionL . meL)
+    ]
+  , vBorder
+  , hLimit 50 $ padLeftRight 1 $ drawCommandList s
+  ]
+
+drawCommandList :: State -> Widget n
+drawCommandList s = vBox . fmap txt $ case s ^. connectedStateL of
+  Disconnected -> ["[Q]uit"]
+  Connected c -> case c ^. headStateL of
+    Idle -> ["[I]nit", "[Q]uit"]
+    Initializing{} -> ["[C]ommit", "[A]bort", "[Q]uit"]
+    Open{} -> ["[N]ew Transaction", "[C]lose", "[Q]uit"]
+    Closed{} -> ["[Q]uit"]
+    FanoutPossible{} -> ["[F]anout", "[Q]uit"]
+    Final{} -> ["[I]nit", "[Q]uit"]
 
 {--
   pure $

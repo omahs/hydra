@@ -74,6 +74,7 @@ initPending = id .= Pending
 -- Update
 --
 
+
 handleVtyEventDisconnected :: Vty.Event -> EventM Name State ()
 handleVtyEventDisconnected e = case e of
   EvKey (KChar 'c') [MCtrl] -> halt
@@ -109,8 +110,8 @@ handleHydraEventConnected = \case
 
 handleBrickEventConnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
 handleBrickEventConnected = \case
-  AppEvent e -> handleHydraEventDisconnected e
-  VtyEvent e -> handleVtyEventDisconnected e
+  AppEvent e -> handleHydraEventConnected e
+  VtyEvent e -> handleVtyEventConnected e
   _ -> pure ()
 
 
