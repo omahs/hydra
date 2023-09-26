@@ -66,9 +66,27 @@ websocketApp :: Host -> WS.PendingConnection -> IO ()
 websocketApp host pendingConnection = do
   frontend <- WS.acceptRequest pendingConnection
   withClient host $ \backend ->
-   race_
-      (forever $ WS.receive frontend >>= WS.send backend)
-      (forever $ WS.receive backend >>= WS.send frontend)
+    race_
+      (forever $ handleFrontendMsg frontend backend)
+      (forever $ handleBackendMsg backend frontend)
+
+handleFrontendMsg :: WS.Connection -> WS.Connection -> IO ()
+handleFrontendMsg fe be = do
+  msg <- WS.receiveDataMessage fe `catch` handleWsException
+  WS.sendDataMessage be msg
+
+handleBackendMsg :: WS.Connection -> WS.Connection -> IO ()
+handleBackendMsg be fe = do
+  msg <- WS.receiveDataMessage be `catch` handleWsException
+  WS.sendDataMessage fe msg
+
+-- | _Swallow_ 'ParseException' and 'UnicodeException' and re-throw all others.
+handleWsException :: WS.ConnectionException -> IO WS.DataMessage
+handleWsException e =
+  case e of
+    WS.ParseException _ -> pure $ WS.Text mempty Nothing
+    WS.UnicodeException _ -> pure $ WS.Text mempty Nothing
+    exc -> throwIO exc
 
 httpApp :: NetworkId -> FilePath -> WS.Connection -> Application
 httpApp networkId key cnx req send =
