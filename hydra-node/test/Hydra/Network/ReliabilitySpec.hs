@@ -34,7 +34,7 @@ import Prelude (unlines)
 
 spec :: Spec
 spec = parallel $ do
-  let captureOutgoing msgqueue _cb action =
+  let captureOutgoing msgqueue _callback action =
         action $ Network{broadcast = \msg -> atomically $ modifyTVar' msgqueue (`snoc` msg)}
 
   let msg' = 42 :: Int
@@ -63,17 +63,19 @@ spec = parallel $ do
           propagatedMessages =
             aliceReceivesMessages
               [ Authenticated (ReliableMsg malFormedAck (Data "node-2" msg')) bob
-              , Authenticated (ReliableMsg wellFormedAck (Data "node-2" msg')) carol
+              , Authenticated (ReliableMsg wellFormedAck (Data "node-3" msg')) carol
               ]
 
-      propagatedMessages `shouldBe` [Authenticated (Data "node-2" msg') carol]
+      propagatedMessages `shouldBe` [Authenticated (Data "node-3" msg') carol]
 
     prop "drops already received messages" $ \(messages :: [Positive Int]) ->
       -- FIXME this property will not fail if we drop all the messages
       let
+        messagesToSend =
+          (\(Positive m) -> Authenticated (ReliableMsg (fromList [0, m, 0]) (Data "node-2" m)) bob)
+            <$> messages
         propagatedMessages = aliceReceivesMessages messagesToSend
 
-        messagesToSend = map (\(Positive m) -> Authenticated (ReliableMsg (fromList [0, m, 0]) (Data "node-2" m)) bob) messages
         receivedMessagesInOrder messageReceived =
           and (zipWith (==) (payload <$> messageReceived) (Data "node-2" <$> [1 ..]))
        in
@@ -135,8 +137,8 @@ spec = parallel $ do
             bobReliabilityStack = reliabilityStack bobFailingNetwork emittedTraces "bob" bob [alice]
             aliceReliabilityStack = reliabilityStack aliceFailingNetwork emittedTraces "alice" alice [bob]
 
-            runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice bobToAliceMessages
-            runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob aliceToBobMessages
+            runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice aliceToBobMessages bobToAliceMessages
+            runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob bobToAliceMessages aliceToBobMessages
 
           race_ runAlice runBob
 
@@ -170,40 +172,40 @@ spec = parallel $ do
             toList <$> readTVarIO sentMessages
 
       receivedMsgs `shouldBe` [ReliableMsg (fromList [1, 1]) (Data "node-1" msg)]
-  where
-   runPeer reliability partyName receivedMessageContainer expectedMessages =
-     reliability (capturePayload receivedMessageContainer) $ \Network{broadcast} -> do
-       forM_ expectedMessages $ \m -> do
-         broadcast (Data partyName m)
-         threadDelay 1
+ where
+  runPeer reliability partyName receivedMessageContainer messagesToSend expectedMessages =
+    reliability (capturePayload receivedMessageContainer) $ \Network{broadcast} -> do
+      forM_ messagesToSend $ \m -> do
+        broadcast (Data partyName m)
+        threadDelay 1
 
-       waitForAllMessages 100 expectedMessages receivedMessageContainer
-       threadDelay 10
+      waitForAllMessages 100 expectedMessages receivedMessageContainer
+      threadDelay 10
 
-   reliabilityStack underlyingNetwork tracesContainer nodeId party peers =
-     withHeartbeat nodeId noop $
-       withFlipHeartbeats $
-         withReliability (captureTraces tracesContainer) party peers underlyingNetwork
+  reliabilityStack underlyingNetwork tracesContainer nodeId party peers =
+    withHeartbeat nodeId noop $
+      withFlipHeartbeats $
+        withReliability (captureTraces tracesContainer) party peers underlyingNetwork
 
-   failingNetwork seed peer (readQueue, writeQueue) callback action =
-     withAsync
-       ( forever $ do
-           newMsg <- atomically $ readTQueue readQueue
-           callback newMsg
-       )
-       $ \_ ->
-         action $
-           Network
-             { broadcast = \m -> atomically $ do
-                 -- drop 2% of messages
-                 r <- randomNumber seed
-                 unless (r < 0.02) $ writeTQueue writeQueue (Authenticated m peer)
-             }
-   randomNumber seed' = do
-       genSeed <- readTVar seed'
-       let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
-       writeTVar seed' newGenSeed
-       pure res
+  failingNetwork seed peer (readQueue, writeQueue) callback action =
+    withAsync
+      ( forever $ do
+          newMsg <- atomically $ readTQueue readQueue
+          callback newMsg
+      )
+      $ \_ ->
+        action $
+          Network
+            { broadcast = \m -> atomically $ do
+                -- drop 2% of messages
+                r <- randomNumber seed
+                unless (r < 0.02) $ writeTQueue writeQueue (Authenticated m peer)
+            }
+  randomNumber seed' = do
+    genSeed <- readTVar seed'
+    let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
+    writeTVar seed' newGenSeed
+    pure res
 
 noop :: Monad m => b -> m ()
 noop = const $ pure ()
@@ -238,7 +240,7 @@ capturePayload receivedMessages message = case payload message of
 
 waitForAllMessages :: (MonadSTM m, MonadDelay m) => Int -> [msg] -> TVar m (Vector msg) -> m ()
 waitForAllMessages n expectedMessages capturedMessages = do
-  if n == (0 :: Int)
+  if n == 0
     then pure ()
     else do
       msgs <- readTVarIO capturedMessages
