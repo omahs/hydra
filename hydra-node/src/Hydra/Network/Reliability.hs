@@ -120,7 +120,7 @@ data ReliabilityLog
   | BroadcastPing {partyIndex :: Int, localCounter :: Vector Int}
   | Received {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
   | Ignored {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
-  | ClearedMessageQueue {messageQueueLength :: Int, deletedMessages :: Int}
+  | ClearedMessageQueue {messageQueueLength :: Int, deletedMessage :: Int}
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -172,7 +172,8 @@ withReliability tracer me otherParties withRawNetwork callback action = do
                   acks <- readTVar ackCounter
                   let newAcks = constructAcks acks ourIndex
                   writeTVar ackCounter newAcks
-                  modifyTVar' sentMessages (insertNewMsg msg)
+                  let msgIndex = newAcks ! ourIndex
+                  modifyTVar' sentMessages (IMap.insert msgIndex msg)
                   readTVar ackCounter
 
                 traceWith tracer (BroadcastCounter ourIndex ackCounter')
@@ -287,24 +288,17 @@ withReliability tracer me otherParties withRawNetwork callback action = do
       if IMap.member messageReceivedByEveryone sentMessages'
         then do
           let updatedMap = IMap.delete messageReceivedByEveryone sentMessages'
+          -- FIXME if we delete a message, the stress tests fail for some reason
           writeTVar sentMessages updatedMap
-          pure $ Just (IMap.size updatedMap, messageReceivedByEveryone)
+          pure $ Just ClearedMessageQueue{messageQueueLength = IMap.size updatedMap, deletedMessage = messageReceivedByEveryone}
         else pure Nothing
 
-    case clearedMessages of
-      Nothing -> pure ()
-      Just (messageQueueLength, deletedMessages) ->
-        traceWith tracer (ClearedMessageQueue{messageQueueLength, deletedMessages})
+    forM_ clearedMessages (traceWith tracer)
    where
     minIndex messages =
       case sortBy (\(_, a) (_, b) -> compare a b) (Map.toList messages) of
         [] -> 0 -- should not happen
         ((_, v) : _) -> v
-
-  insertNewMsg msg m =
-    case IMap.lookupMax m of
-      Nothing -> IMap.insert 1 msg m
-      Just (k, _) -> IMap.insert (k + 1) msg m
 
   -- find the index of a party in the list of parties or fail with 'ReliabilityMissingPartyIndex'
   findPartyIndex party =

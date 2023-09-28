@@ -94,13 +94,17 @@ spec = parallel $ do
                   action $ Network{broadcast = \_ -> pure ()}
                   incoming (Authenticated (ReliableMsg (fromList [1, 1, 1]) msg) carol)
                   action $ Network{broadcast = \_ -> pure ()}
+                  incoming (Authenticated (ReliableMsg (fromList [2, 1, 0]) msg) bob)
+                  incoming (Authenticated (ReliableMsg (fromList [2, 1, 1]) msg) carol)
+                  action $ Network{broadcast = \_ -> pure ()}
               )
               noop
               $ \Network{broadcast} -> do
                 broadcast msg
             readTVarIO emittedTraces
 
-      receivedTraces `shouldContain` [ClearedMessageQueue{messageQueueLength = 1, deletedMessages = 1}]
+      receivedTraces `shouldContain` [ClearedMessageQueue{messageQueueLength = 1, deletedMessage = 1}]
+      receivedTraces `shouldContain` [ClearedMessageQueue{messageQueueLength = 1, deletedMessage = 2}]
 
   describe "sending messages" $ do
     prop "broadcast messages to the network assigning a sequential id" $ \(messages :: [String]) ->
