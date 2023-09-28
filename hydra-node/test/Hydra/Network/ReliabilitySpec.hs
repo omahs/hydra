@@ -127,48 +127,16 @@ spec = parallel $ do
           aliceToBob <- newTQueueIO
           bobToAlice <- newTQueueIO
           let
-            randomNumber = do
-              genSeed <- readTVar randomSeed
-              let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
-              writeTVar randomSeed newGenSeed
-              pure res
-
             -- this is a NetworkComponent that broadcasts authenticated messages
             -- mediated through a read and a write TQueue but drops 0.2 % of them
-            aliceFailingNetwork = failingNetwork alice (bobToAlice, aliceToBob)
-            bobFailingNetwork = failingNetwork bob (aliceToBob, bobToAlice)
-            failingNetwork peer (readQueue, writeQueue) callback action =
-              withAsync
-                ( forever $ do
-                    newMsg <- atomically $ readTQueue readQueue
-                    callback newMsg
-                )
-                $ \_ ->
-                  action $
-                    Network
-                      { broadcast = \m -> atomically $ do
-                          -- drop 2% of messages
-                          r <- randomNumber
-                          unless (r < 0.02) $ writeTQueue writeQueue (Authenticated m peer)
-                      }
+            aliceFailingNetwork = failingNetwork randomSeed alice (bobToAlice, aliceToBob)
+            bobFailingNetwork = failingNetwork randomSeed bob (aliceToBob, bobToAlice)
 
-            bobReliabilityStack = reliabilityStack bobFailingNetwork "bob" bob [alice]
-            aliceReliabilityStack = reliabilityStack aliceFailingNetwork "alice" alice [bob]
-            reliabilityStack underlyingNetwork partyName party peers =
-              withHeartbeat partyName noop $
-                withFlipHeartbeats $
-                  withReliability (captureTraces emittedTraces) party peers underlyingNetwork
+            bobReliabilityStack = reliabilityStack bobFailingNetwork emittedTraces "bob" bob [alice]
+            aliceReliabilityStack = reliabilityStack aliceFailingNetwork emittedTraces "alice" alice [bob]
 
             runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice bobToAliceMessages
             runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob aliceToBobMessages
-            runPeer reliability partyName receivedMessageContainer expectedMessages =
-              reliability (capturePayload receivedMessageContainer) $ \Network{broadcast} -> do
-                forM_ aliceToBobMessages $ \m -> do
-                  broadcast (Data partyName m)
-                  threadDelay 1
-
-                waitForAllMessages 100 expectedMessages receivedMessageContainer
-                threadDelay 10
 
           race_ runAlice runBob
 
@@ -202,6 +170,40 @@ spec = parallel $ do
             toList <$> readTVarIO sentMessages
 
       receivedMsgs `shouldBe` [ReliableMsg (fromList [1, 1]) (Data "node-1" msg)]
+  where
+   runPeer reliability partyName receivedMessageContainer expectedMessages =
+     reliability (capturePayload receivedMessageContainer) $ \Network{broadcast} -> do
+       forM_ expectedMessages $ \m -> do
+         broadcast (Data partyName m)
+         threadDelay 1
+
+       waitForAllMessages 100 expectedMessages receivedMessageContainer
+       threadDelay 10
+
+   reliabilityStack underlyingNetwork tracesContainer nodeId party peers =
+     withHeartbeat nodeId noop $
+       withFlipHeartbeats $
+         withReliability (captureTraces tracesContainer) party peers underlyingNetwork
+
+   failingNetwork seed peer (readQueue, writeQueue) callback action =
+     withAsync
+       ( forever $ do
+           newMsg <- atomically $ readTQueue readQueue
+           callback newMsg
+       )
+       $ \_ ->
+         action $
+           Network
+             { broadcast = \m -> atomically $ do
+                 -- drop 2% of messages
+                 r <- randomNumber seed
+                 unless (r < 0.02) $ writeTQueue writeQueue (Authenticated m peer)
+             }
+   randomNumber seed' = do
+       genSeed <- readTVar seed'
+       let (res, newGenSeed) = uniformR (0 :: Double, 1) genSeed
+       writeTVar seed' newGenSeed
+       pure res
 
 noop :: Monad m => b -> m ()
 noop = const $ pure ()
