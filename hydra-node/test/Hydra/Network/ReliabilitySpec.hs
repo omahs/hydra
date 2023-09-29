@@ -69,7 +69,6 @@ spec = parallel $ do
       propagatedMessages `shouldBe` [Authenticated (Data "node-3" msg') carol]
 
     prop "drops already received messages" $ \(messages :: [Positive Int]) ->
-      -- FIXME this property will not fail if we drop all the messages
       let
         messagesToSend =
           (\(Positive m) -> Authenticated (ReliableMsg (fromList [0, m, 0]) (Data "node-2" m)) bob)
@@ -77,7 +76,8 @@ spec = parallel $ do
         propagatedMessages = aliceReceivesMessages messagesToSend
 
         receivedMessagesInOrder messageReceived =
-          and (zipWith (==) (payload <$> messageReceived) (Data "node-2" <$> [1 ..]))
+          let refMessages = Data "node-2" <$> [1..]
+          in  all (`elem` refMessages) (payload <$> messageReceived)
        in
         receivedMessagesInOrder propagatedMessages
           & counterexample (show propagatedMessages)
