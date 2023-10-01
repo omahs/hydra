@@ -238,7 +238,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
           updateSeenMessages seenMessages acks party
           -- Take the lowest number from seen messages by everyone and remove it from
           -- our sent messages.
-          deleteSeenMessages sentMessages seenMessages
+          deleteSeenMessage sentMessages seenMessages
 
   ignoreMalformedMessages = pure ()
 
@@ -283,14 +283,20 @@ withReliability tracer me otherParties withRawNetwork callback action = do
       forM_ (acks !? myIndex) $ \messageAckForUs ->
         insertSeenMessage party messageAckForUs
 
-  deleteSeenMessages SentMessages{getSentMessages, removeSentMessage} SeenMessages{getSeenMessages} = do
+  -- We delete messages by obtaining the minimim counter from a map of seen
+  -- messages by parties. This implies that all other parties must already have
+  -- seen the same message since their counter is higher than the minimum one.
+  --
+  -- Eg. [(P1, 3), (P2, 4) (P3,1)] -> Here we would pick P3 that saw the message
+  -- 1 to delete since P1 and P2 already saw messages 3 and 4 which come after
+  -- the message 1 thus it is safe to delete this message.
+  deleteSeenMessage SentMessages{getSentMessages, removeSentMessage} SeenMessages{getSeenMessages} = do
     clearedMessages <- do
       seenMessages' <- getSeenMessages
       let messageReceivedByEveryone = minIndex seenMessages'
       sentMessages' <- getSentMessages
       if IMap.member messageReceivedByEveryone sentMessages'
         then do
-          -- FIXME if we delete a message, the stress tests fail for some reason
           updatedMap <- removeSentMessage messageReceivedByEveryone
           pure $ Just ClearedMessageQueue{messageQueueLength = IMap.size updatedMap, deletedMessage = messageReceivedByEveryone}
         else pure Nothing
