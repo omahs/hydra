@@ -384,8 +384,7 @@ renderTime r
 drawHeadState :: ConnectedState -> Widget n
 drawHeadState = \case
   Disconnected{} -> emptyWidget
-  Connected(Connection{headState, pending = NotPending}) -> drawVBox headState $ txt ""
-  Connected(Connection{headState, pending = Pending}) -> drawVBox headState $ txt " (Transition pending)"
+  Connected(Connection{headState, transitionNote}) -> drawVBox headState $ maybeWidget txt transitionNote
   where
    drawVBox headState drawPending =
       vBox

@@ -17,6 +17,7 @@ import Hydra.Client (HydraEvent (..))
 import Hydra.Network (Host (..), NodeId)
 import Hydra.Party (Party (..))
 import Lens.Micro.TH (makeLensesFor)
+import Hydra.API.ClientInput (ClientInput)
 
 --
 -- Model
@@ -41,11 +42,9 @@ data Connection = Connection
       , peers :: [NodeId]
       , headState :: HeadState
       , feedback :: [UserFeedback]
-      , pending :: Pending
+      , transitionNote :: Maybe Text
       , hydraHeadId :: Maybe HeadId
       }
-
-data Pending = Pending | NotPending deriving (Eq, Show, Generic)
 
 data UserFeedback = UserFeedback
   { severity :: Severity
@@ -59,14 +58,6 @@ data Severity
   | Info
   | Error
   deriving (Eq, Show, Generic)
-
-data DialogState where
-  NoDialog :: DialogState
-  Dialog ::
-    forall s.
-    Text ->
-    Form s (HydraEvent Tx) Name ->
-    DialogState
 
 data HeadState
   = Idle
@@ -107,7 +98,7 @@ makeLensesFor
   ''ConnectedState
 
 makeLensesFor
-  [ ("pending", "pendingL")
+  [ ("transitionNote", "transitionNoteL")
   , ("me", "meL")
   , ("feedback", "feedbackL")
   , ("headState", "headStateL")

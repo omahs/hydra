@@ -64,11 +64,11 @@ report typ msg = do
 report' :: UTCTime -> Severity -> Text -> EventM n Connection ()
 report' time typ msg = feedbackL %= (UserFeedback typ msg time :)
 
-stopPending :: EventM n Connection ()
-stopPending = pendingL .= NotPending
+clearTransitionNote :: EventM n Connection ()
+clearTransitionNote = transitionNoteL .= Nothing
 
-initPending :: EventM n Connection ()
-initPending = pendingL .= Pending
+setTransitionNote :: Text -> EventM n Connection ()
+setTransitionNote x = transitionNoteL .= Just x
 
 --
 -- Update
@@ -89,7 +89,7 @@ handleHydraEventDisconnected = \case
        { me = Unidentified
        , peers = []
        , headState = Idle
-       , pending = NotPending
+       , transitionNote = Nothing
        , hydraHeadId = Nothing
        , feedback = mempty
        })
@@ -103,9 +103,9 @@ handleBrickEventDisconnected = \case
 
 handleVtyLifecycleEvents :: Client Tx IO -> Vty.Event -> EventM Name Connection ()
 handleVtyLifecycleEvents Client{sendInput} = \case
-  EvKey (KChar 'i') [] -> liftIO (sendInput Init)
-  EvKey (KChar 'a') [] -> liftIO (sendInput Abort)
-  EvKey (KChar 'f') [] -> liftIO (sendInput Fanout)
+  EvKey (KChar 'i') [] -> liftIO (sendInput Init) >> setTransitionNote "Initializing"
+  EvKey (KChar 'a') [] -> liftIO (sendInput Abort) >> setTransitionNote "Aborting"
+  EvKey (KChar 'f') [] -> liftIO (sendInput Fanout) >> setTransitionNote "Fanouting"
   _ -> pure ()
 
 handleHydraLifecycleEvents :: HydraEvent Tx -> EventM Name Connection ()
@@ -118,14 +118,14 @@ handleHydraLifecycleEvents = \case
           ps = toList parties
 
       headStateL .= Initializing{parties = ps, remainingParties = ps, utxo, headId = headId}
-      stopPending
+      clearTransitionNote
   Update TimedServerOutput{time, output = HeadIsAborted{}} -> do
       headStateL .= Idle
       info' time "Head aborted, back to square one."
-      stopPending
+      clearTransitionNote
   Update TimedServerOutput{time, output = CommandFailed{clientInput}} -> do
     warn' time ("Invalid command: " <> show clientInput)
-    stopPending
+    clearTransitionNote
   _ -> pure ()
 
 
@@ -208,12 +208,6 @@ handleEvent client cardanoClient e = do
         _ -> pure ()
   e ->
     warn ("unhandled event: " <> show e)
-
-setPending :: EventM n State ()
-setPending = preuse pendingL >>= \case
-    Just Pending -> info "Transition already pending"
-    Just NotPending -> initPending
-    Nothing -> pure ()
 
 handleAppEvent ::
   MonadState State m =>
