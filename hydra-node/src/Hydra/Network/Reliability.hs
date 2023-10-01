@@ -136,6 +136,11 @@ data SentMessages m msg = SentMessages
   , removeSentMessage :: Int -> m (IMap.IntMap msg)
   }
 
+data SeenMessages m = SeenMessages
+  { getSeenMessages :: m (Map.Map Party Int)
+  , insertSeenMessage :: Party -> Int -> m ()
+  }
+
 -- | Middleware function to handle message counters tracking and resending logic.
 --
 -- '''NOTE''': There is some "abstraction leak" here, because the `withReliability`
@@ -158,7 +163,7 @@ withReliability ::
 withReliability tracer me otherParties withRawNetwork callback action = do
   ackCounter <- newTVarIO $ replicate (length allParties) 0
   sentMessages <- mkSentMessagesHandle
-  seenMessages <- newTVarIO $ Map.fromList $ (,0) <$> toList otherParties
+  seenMessages <- mkSeenMessagesHandle otherParties
   resendQ <- newTQueueIO
   ourIndex <- findPartyIndex me
   let resend = writeTQueue resendQ
@@ -280,14 +285,14 @@ withReliability tracer me otherParties withRawNetwork callback action = do
             traceWith tracer (Resending missing messageAcks newAcks' partyIndex)
             atomically $ resend $ ReliableMsg newAcks' missingMsg
 
-  updateSeenMessages seenMessages acks party = do
+  updateSeenMessages SeenMessages{insertSeenMessage} acks party = do
     myIndex <- findPartyIndex me
     let messageAckForUs = acks ! myIndex
-    atomically $ modifyTVar' seenMessages (Map.insert party messageAckForUs)
+    insertSeenMessage party messageAckForUs
 
-  deleteSeenMessages SentMessages{getSentMessages, removeSentMessage} seenMessages = do
-    seenMessages' <- readTVarIO seenMessages
+  deleteSeenMessages SentMessages{getSentMessages, removeSentMessage} SeenMessages{getSeenMessages} = do
     clearedMessages <- do
+      seenMessages' <- getSeenMessages
       let messageReceivedByEveryone = minIndex seenMessages'
       sentMessages' <- getSentMessages
       if IMap.member messageReceivedByEveryone sentMessages'
@@ -322,3 +327,11 @@ mkSentMessagesHandle = do
           readTVar sentMessages
       }
 
+mkSeenMessagesHandle :: MonadSTM m => [Party] -> m (SeenMessages m)
+mkSeenMessagesHandle parties = do
+  seenMessages <- newTVarIO $ Map.fromList $ (,0) <$> toList parties
+  pure
+    SeenMessages
+      { getSeenMessages = readTVarIO seenMessages
+      , insertSeenMessage = \i msg -> atomically $ modifyTVar' seenMessages (Map.insert i msg)
+      }
