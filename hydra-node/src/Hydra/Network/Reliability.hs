@@ -191,12 +191,8 @@ withReliability tracer me otherParties withRawNetwork callback action = do
       then ignoreMalformedMessages
       else findPartyIndex party $ \partyIndex -> do
         knownAcks' <- getAckCounter
-        let findAcksForParty = do
-              messageAckForParty <- acks !? partyIndex
-              knownAckForParty <- knownAcks' !? partyIndex
-              pure (messageAckForParty, knownAckForParty)
 
-        forM_ findAcksForParty $ \(messageAckForParty, knownAckForParty) -> do
+        forM_ (findAcksFor knownAcks' acks partyIndex) $ \(messageAckForParty, knownAckForParty) -> do
           (shouldCallback, knownAcks) <- do
             -- handle message from party iff it's next in line OR if it's a Ping
             --
@@ -253,11 +249,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
 
   resendMessagesIfLagging resend partyIndex SentMessages{getSentMessages} knownAcks messageAcks =
     findPartyIndex me $ \myIndex -> do
-      let findAcksForUs = do
-              messageAckForUs <- messageAcks !? myIndex
-              knownAckForUs <- knownAcks !? myIndex
-              pure (messageAckForUs, knownAckForUs)
-      forM_ findAcksForUs $ \(messageAckForUs, knownAckForUs) -> do
+      forM_ (findAcksFor knownAcks messageAcks myIndex) $ \(messageAckForUs, knownAckForUs) -> do
         -- We resend messages if our peer notified us that it's lagging behind our
         -- latest message sent
         when (messageAckForUs < knownAckForUs) $ do
@@ -314,6 +306,12 @@ withReliability tracer me otherParties withRawNetwork callback action = do
   -- NOTE: This should never fail so we can ignore errors.
   findPartyIndex party =
     forM_ (elemIndex party allParties)
+
+  -- find the known (local) acks and acks from a message for certain party
+  findAcksFor knownAcks acks partyIndex = do
+    messageAckForParty <- acks !? partyIndex
+    knownAckForParty <- knownAcks !? partyIndex
+    pure (messageAckForParty, knownAckForParty)
 
 mkSentMessagesHandle :: MonadSTM m => m (SentMessages m msg)
 mkSentMessagesHandle = do
