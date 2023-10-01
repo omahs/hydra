@@ -107,7 +107,7 @@ data ReliabilityLog
   | Received {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
   | Ignored {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
   | ClearedMessageQueue {messageQueueLength :: Int, deletedMessage :: Int}
-  | ReliabilityFailedToFindMsg String
+  | ReliabilityFailedToFindMsg { failedToFindMessage :: String }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
