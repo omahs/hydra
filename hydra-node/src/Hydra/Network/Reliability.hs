@@ -62,7 +62,7 @@ import Control.Concurrent.Class.MonadSTM (
   writeTVar,
  )
 import Control.Tracer (Tracer)
-import qualified Data.IntMap as IMap
+import qualified Data.IntMap.Strict as IMap
 import qualified Data.Map.Strict as Map
 import Data.Vector (
   Vector,
