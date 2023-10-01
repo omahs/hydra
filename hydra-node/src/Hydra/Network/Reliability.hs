@@ -141,6 +141,11 @@ data SeenMessages m = SeenMessages
   , insertSeenMessage :: Party -> Int -> m ()
   }
 
+data AckCounter m = AckCounter
+  { getAckCounter :: m (Vector Int)
+  , updateAckCounter :: Vector Int -> m (Vector Int)
+  }
+
 -- | Middleware function to handle message counters tracking and resending logic.
 --
 -- '''NOTE''': There is some "abstraction leak" here, because the `withReliability`
@@ -150,9 +155,7 @@ data SeenMessages m = SeenMessages
 -- NOTE: better use of Vectors? We should perhaps use a `MVector` to be able to
 -- mutate in-place and not need `zipWith`
 withReliability ::
-  (MonadThrow (STM m), MonadThrow m, MonadAsync m) =>
-  -- | Tracer for logging messages.
-  Tracer m ReliabilityLog ->
+  ( MonadThrow m, MonadAsync m) =>Tracer m ReliabilityLog ->
   -- | Our own party identifier.
   Party ->
   -- | Other parties' identifiers.
@@ -161,7 +164,7 @@ withReliability ::
   NetworkComponent m (Authenticated (ReliableMsg (Heartbeat msg))) (ReliableMsg (Heartbeat msg)) a ->
   NetworkComponent m (Authenticated (Heartbeat msg)) (Heartbeat msg) a
 withReliability tracer me otherParties withRawNetwork callback action = do
-  ackCounter <- newTVarIO $ replicate (length allParties) 0
+  ackCounter <- mkAckCounterHandle allParties
   sentMessages <- mkSentMessagesHandle
   seenMessages <- mkSeenMessagesHandle otherParties
   resendQ <- newTQueueIO
@@ -173,35 +176,34 @@ withReliability tracer me otherParties withRawNetwork callback action = do
  where
   allParties = fromList $ sort $ me : otherParties
 
-  reliableBroadcast ourIndex ackCounter SentMessages{insertSentMessage} Network{broadcast} =
+  reliableBroadcast ourIndex AckCounter{getAckCounter, updateAckCounter} SentMessages{insertSentMessage} Network{broadcast} =
     action $
       Network
         { broadcast = \msg ->
             case msg of
               Data{} -> do
-                ackCounter' <- atomically $ do
-                  acks <- readTVar ackCounter
+                ackCounter' <- do
+                  acks <- getAckCounter
                   let newAcks = constructAcks acks ourIndex
-                  writeTVar ackCounter newAcks
-                  readTVar ackCounter
-                insertSentMessage (ackCounter' ! ourIndex) msg
+                  insertSentMessage (newAcks ! ourIndex) msg
+                  updateAckCounter newAcks
 
                 traceWith tracer (BroadcastCounter ourIndex ackCounter')
                 broadcast $ ReliableMsg ackCounter' msg
               Ping{} -> do
-                acks <- readTVarIO ackCounter
+                acks <- getAckCounter
                 traceWith tracer (BroadcastPing ourIndex acks)
                 broadcast $ ReliableMsg acks msg
         }
 
-  reliableCallback ackCounter sentMessages seenMessages resend (Authenticated (ReliableMsg acks msg) party) = do
+  reliableCallback AckCounter{getAckCounter,updateAckCounter} sentMessages seenMessages resend (Authenticated (ReliableMsg acks msg) party) = do
     if length acks /= length allParties
       then ignoreMalformedMessages
       else do
         partyIndex <- findPartyIndex party
-        (shouldCallback, _messageAckForParty, _knownAckForParty, knownAcks) <- atomically $ do
+        (shouldCallback, _messageAckForParty, _knownAckForParty, knownAcks) <- do
           let messageAckForParty = acks ! partyIndex
-          knownAcks <- readTVar ackCounter
+          knownAcks <- getAckCounter
           let knownAckForParty = knownAcks ! partyIndex
 
           -- handle message from party iff it's next in line OR if it's a Ping
@@ -225,7 +227,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
               if messageAckForParty == knownAckForParty + 1
                 then do
                   let newAcks = constructAcks knownAcks partyIndex
-                  writeTVar ackCounter newAcks
+                  void $ updateAckCounter newAcks
                   return (True, messageAckForParty, knownAckForParty, newAcks)
                 else return (isPing msg, messageAckForParty, knownAckForParty, knownAcks)
 
@@ -335,3 +337,15 @@ mkSeenMessagesHandle parties = do
       { getSeenMessages = readTVarIO seenMessages
       , insertSeenMessage = \i msg -> atomically $ modifyTVar' seenMessages (Map.insert i msg)
       }
+
+mkAckCounterHandle :: MonadSTM m => Vector Party -> m (AckCounter m)
+mkAckCounterHandle parties = do
+  ackCounter <- newTVarIO $ replicate (length parties) 0
+  pure
+    AckCounter
+      { getAckCounter = readTVarIO ackCounter
+      , updateAckCounter = \newAcks -> atomically $ do
+          writeTVar ackCounter newAcks
+          readTVar ackCounter
+      }
+
