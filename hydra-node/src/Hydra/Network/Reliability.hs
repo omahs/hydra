@@ -130,6 +130,12 @@ instance Arbitrary (Vector Int) where
 instance Arbitrary ReliabilityLog where
   arbitrary = genericArbitrary
 
+data SentMessages m msg = SentMessages
+  { getSentMessages :: m (IMap.IntMap msg)
+  , insertSentMessage :: Int -> msg -> m ()
+  , removeSentMessage :: Int -> m (IMap.IntMap msg)
+  }
+
 -- | Middleware function to handle message counters tracking and resending logic.
 --
 -- '''NOTE''': There is some "abstraction leak" here, because the `withReliability`
@@ -151,7 +157,7 @@ withReliability ::
   NetworkComponent m (Authenticated (Heartbeat msg)) (Heartbeat msg) a
 withReliability tracer me otherParties withRawNetwork callback action = do
   ackCounter <- newTVarIO $ replicate (length allParties) 0
-  sentMessages <- newTVarIO IMap.empty
+  sentMessages <- mkSentMessagesHandle
   seenMessages <- newTVarIO $ Map.fromList $ (,0) <$> toList otherParties
   resendQ <- newTQueueIO
   ourIndex <- findPartyIndex me
@@ -162,7 +168,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
  where
   allParties = fromList $ sort $ me : otherParties
 
-  reliableBroadcast ourIndex ackCounter sentMessages Network{broadcast} =
+  reliableBroadcast ourIndex ackCounter SentMessages{insertSentMessage} Network{broadcast} =
     action $
       Network
         { broadcast = \msg ->
@@ -172,9 +178,8 @@ withReliability tracer me otherParties withRawNetwork callback action = do
                   acks <- readTVar ackCounter
                   let newAcks = constructAcks acks ourIndex
                   writeTVar ackCounter newAcks
-                  let msgIndex = newAcks ! ourIndex
-                  modifyTVar' sentMessages (IMap.insert msgIndex msg)
                   readTVar ackCounter
+                insertSentMessage (ackCounter' ! ourIndex) msg
 
                 traceWith tracer (BroadcastCounter ourIndex ackCounter')
                 broadcast $ ReliableMsg ackCounter' msg
@@ -247,7 +252,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
 
   partyIndexes = generate (length allParties) id
 
-  resendMessagesIfLagging resend partyIndex sentMessages knownAcks messageAcks = do
+  resendMessagesIfLagging resend partyIndex SentMessages{getSentMessages} knownAcks messageAcks = do
     myIndex <- findPartyIndex me
     let messageAckForUs = messageAcks ! myIndex
     let knownAckForUs = knownAcks ! myIndex
@@ -256,7 +261,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
     -- latest message sent
     when (messageAckForUs < knownAckForUs) $ do
       let missing = fromList [messageAckForUs + 1 .. knownAckForUs]
-      messages <- readTVarIO sentMessages
+      messages <- getSentMessages
       forM_ missing $ \idx -> do
         case messages IMap.!? idx of
           Nothing -> pure ()
@@ -280,16 +285,15 @@ withReliability tracer me otherParties withRawNetwork callback action = do
     let messageAckForUs = acks ! myIndex
     atomically $ modifyTVar' seenMessages (Map.insert party messageAckForUs)
 
-  deleteSeenMessages sentMessages seenMessages = do
-    clearedMessages <- atomically $ do
-      seenMessages' <- readTVar seenMessages
+  deleteSeenMessages SentMessages{getSentMessages, removeSentMessage} seenMessages = do
+    seenMessages' <- readTVarIO seenMessages
+    clearedMessages <- do
       let messageReceivedByEveryone = minIndex seenMessages'
-      sentMessages' <- readTVar sentMessages
+      sentMessages' <- getSentMessages
       if IMap.member messageReceivedByEveryone sentMessages'
         then do
-          let updatedMap = IMap.delete messageReceivedByEveryone sentMessages'
           -- FIXME if we delete a message, the stress tests fail for some reason
-          writeTVar sentMessages updatedMap
+          updatedMap <- removeSentMessage messageReceivedByEveryone
           pure $ Just ClearedMessageQueue{messageQueueLength = IMap.size updatedMap, deletedMessage = messageReceivedByEveryone}
         else pure Nothing
 
@@ -303,3 +307,18 @@ withReliability tracer me otherParties withRawNetwork callback action = do
   -- find the index of a party in the list of parties or fail with 'ReliabilityMissingPartyIndex'
   findPartyIndex party =
     maybe (throwIO $ ReliabilityMissingPartyIndex party) pure $ elemIndex party allParties
+
+mkSentMessagesHandle :: MonadSTM m => m (SentMessages m msg)
+mkSentMessagesHandle = do
+  sentMessages <- newTVarIO IMap.empty
+  pure
+    SentMessages
+      { getSentMessages = readTVarIO sentMessages
+      , insertSentMessage = \i msg -> atomically $ modifyTVar' sentMessages (IMap.insert i msg)
+      , removeSentMessage = \i -> atomically $ do
+          sentMessages' <- readTVar sentMessages
+          let updatedMap = IMap.delete i sentMessages'
+          writeTVar sentMessages updatedMap
+          readTVar sentMessages
+      }
+
