@@ -173,7 +173,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
               Data{} -> do
                 ackCounter' <- do
                   acks <- getAckCounter
-                  let newAcks = constructAcks acks myIndex
+                  let newAcks = incAckForParty acks myIndex
                   forM_ (newAcks !? myIndex) $ \myAcks ->
                     insertSentMessage myAcks msg
                   updateAckCounter newAcks
@@ -218,7 +218,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
               else
                 if messageAckForParty == knownAckForParty + 1
                   then do
-                    let newAcks = constructAcks knownAcks' partyIndex
+                    let newAcks = incAckForParty knownAcks' partyIndex
                     void $ updateAckCounter newAcks
                     return (True, newAcks)
                   else return (isPing msg, knownAcks')
@@ -246,7 +246,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
 
   ignoreMalformedMessages = pure ()
 
-  constructAcks acks wantedIndex =
+  incAckForParty acks wantedIndex =
     zipWith (\ack i -> if i == wantedIndex then ack + 1 else ack) acks partyIndexes
 
   partyIndexes = generate (length allParties) id
