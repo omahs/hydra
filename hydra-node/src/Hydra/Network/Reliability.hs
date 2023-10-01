@@ -72,7 +72,7 @@ import Data.Vector (
   length,
   replicate,
   zipWith,
-  (!),
+  (!?),
  )
 import Hydra.Logging (traceWith)
 import Hydra.Network (Network (..), NetworkComponent)
@@ -99,7 +99,6 @@ instance (FromCBOR msg) => FromCBOR (ReliableMsg msg) where
 
 instance ToCBOR msg => SignableRepresentation (ReliableMsg msg) where
   getSignableRepresentation = serialize'
-
 
 data ReliabilityLog
   = Resending {missing :: Vector Int, acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
@@ -175,7 +174,8 @@ withReliability tracer me otherParties withRawNetwork callback action = do
                 ackCounter' <- do
                   acks <- getAckCounter
                   let newAcks = constructAcks acks myIndex
-                  insertSentMessage (newAcks ! myIndex) msg
+                  forM_ (newAcks !? myIndex) $ \myAcks ->
+                    insertSentMessage myAcks msg
                   updateAckCounter newAcks
 
                 traceWith tracer (BroadcastCounter myIndex ackCounter')
@@ -190,56 +190,59 @@ withReliability tracer me otherParties withRawNetwork callback action = do
     if length acks /= length allParties
       then ignoreMalformedMessages
       else findPartyIndex party $ \partyIndex -> do
-        (shouldCallback, _messageAckForParty, _knownAckForParty, knownAcks) <- do
-          let messageAckForParty = acks ! partyIndex
-          knownAcks <- getAckCounter
-          let knownAckForParty = knownAcks ! partyIndex
+        knownAcks' <- getAckCounter
+        let findAcksForParty = do
+              messageAckForParty <- acks !? partyIndex
+              knownAckForParty <- knownAcks' !? partyIndex
+              pure (messageAckForParty, knownAckForParty)
 
-          -- handle message from party iff it's next in line OR if it's a Ping
-          --
-          -- The stream of messages from a peer is expected to look like:
-          --
-          -- @@
-          -- Msg [.., 1, ..] (Data nid m1)
-          -- Msg [.., 2, ..] (Data nid m1)
-          -- Msg [.., 3, ..] (Data nid m1)
-          -- Msg [.., 3, ..] (Ping nid)
-          -- Msg [.., 3, ..] (Ping nid)
-          -- Msg [.., 3, ..] (Ping nid)
-          -- @@
-          --
-          -- Pings are observed only for the information it provides about the
-          -- peer's view of our index
-          if isPing msg
-            then return (isPing msg, messageAckForParty, knownAckForParty, knownAcks)
-            else
-              if messageAckForParty == knownAckForParty + 1
-                then do
-                  let newAcks = constructAcks knownAcks partyIndex
-                  void $ updateAckCounter newAcks
-                  return (True, messageAckForParty, knownAckForParty, newAcks)
-                else return (isPing msg, messageAckForParty, knownAckForParty, knownAcks)
+        forM_ findAcksForParty $ \(messageAckForParty, knownAckForParty) -> do
+          (shouldCallback, knownAcks) <- do
+            -- handle message from party iff it's next in line OR if it's a Ping
+            --
+            -- The stream of messages from a peer is expected to look like:
+            --
+            -- @@
+            -- Msg [.., 1, ..] (Data nid m1)
+            -- Msg [.., 2, ..] (Data nid m1)
+            -- Msg [.., 3, ..] (Data nid m1)
+            -- Msg [.., 3, ..] (Ping nid)
+            -- Msg [.., 3, ..] (Ping nid)
+            -- Msg [.., 3, ..] (Ping nid)
+            -- @@
+            --
+            -- Pings are observed only for the information it provides about the
+            -- peer's view of our index
+            if isPing msg
+              then return (isPing msg, knownAcks')
+              else
+                if messageAckForParty == knownAckForParty + 1
+                  then do
+                    let newAcks = constructAcks knownAcks' partyIndex
+                    void $ updateAckCounter newAcks
+                    return (True, newAcks)
+                  else return (isPing msg, knownAcks')
 
-        if shouldCallback
-          then do
-            callback (Authenticated msg party)
-            traceWith tracer (Received acks knownAcks partyIndex)
-          else traceWith tracer (Ignored acks knownAcks partyIndex)
+          if shouldCallback
+            then do
+              callback (Authenticated msg party)
+              traceWith tracer (Received acks knownAcks partyIndex)
+            else traceWith tracer (Ignored acks knownAcks partyIndex)
 
-        -- NOTE: We only check whether or not our peer is lagging behind to
-        -- resend messages if the peer is quiescent, ie. it did not make any
-        -- progress since the last message we got from it ; or if it is sending
-        -- us "old" messages. This could happen if it is also resending
-        -- messages, but then we might detect later it's not actually lagging
-        -- and therefore we won't resend
-        -- when (messageAckForParty <= knownAckForParty) $
-        resendMessagesIfLagging resend partyIndex sentMessages knownAcks acks
+          -- NOTE: We only check whether or not our peer is lagging behind to
+          -- resend messages if the peer is quiescent, ie. it did not make any
+          -- progress since the last message we got from it ; or if it is sending
+          -- us "old" messages. This could happen if it is also resending
+          -- messages, but then we might detect later it's not actually lagging
+          -- and therefore we won't resend
+          -- when (messageAckForParty <= knownAckForParty) $
+          resendMessagesIfLagging resend partyIndex sentMessages knownAcks acks
 
-        -- Update last message index sent by us and seen by some party
-        updateSeenMessages seenMessages acks party
-        -- Take the lowest number from seen messages by everyone and remove it from
-        -- our sent messages.
-        deleteSeenMessages sentMessages seenMessages
+          -- Update last message index sent by us and seen by some party
+          updateSeenMessages seenMessages acks party
+          -- Take the lowest number from seen messages by everyone and remove it from
+          -- our sent messages.
+          deleteSeenMessages sentMessages seenMessages
 
   ignoreMalformedMessages = pure ()
 
@@ -250,41 +253,43 @@ withReliability tracer me otherParties withRawNetwork callback action = do
 
   resendMessagesIfLagging resend partyIndex SentMessages{getSentMessages} knownAcks messageAcks =
     findPartyIndex me $ \myIndex -> do
-      let messageAckForUs = messageAcks ! myIndex
-      let knownAckForUs = knownAcks ! myIndex
-
-      -- We resend messages if our peer notified us that it's lagging behind our
-      -- latest message sent
-      when (messageAckForUs < knownAckForUs) $ do
-        let missing = fromList [messageAckForUs + 1 .. knownAckForUs]
-        messages <- getSentMessages
-        forM_ missing $ \idx -> do
-          case messages IMap.!? idx of
-            -- Here we decide to just log and continue even if we are not able to
-            -- find the message to resend. The reason is we don't want to bring
-            -- the network down by throwing just because some message is
-            -- missplaced.
-            Nothing -> do
-              traceWith tracer $
-                ReliabilityFailedToFindMsg
-                  ( show idx
-                      <> ", messages length = "
-                      <> show (IMap.size messages)
-                      <> ", latest message ack: "
-                      <> show knownAckForUs
-                      <> ", acked: "
-                      <> show messageAckForUs
-                  )
-              pure ()
-            Just missingMsg -> do
-              let newAcks' = zipWith (\ack i -> if i == myIndex then idx else ack) knownAcks partyIndexes
-              traceWith tracer (Resending missing messageAcks newAcks' partyIndex)
-              atomically $ resend $ ReliableMsg newAcks' missingMsg
+      let findAcksForUs = do
+              messageAckForUs <- messageAcks !? myIndex
+              knownAckForUs <- knownAcks !? myIndex
+              pure (messageAckForUs, knownAckForUs)
+      forM_ findAcksForUs $ \(messageAckForUs, knownAckForUs) -> do
+        -- We resend messages if our peer notified us that it's lagging behind our
+        -- latest message sent
+        when (messageAckForUs < knownAckForUs) $ do
+          let missing = fromList [messageAckForUs + 1 .. knownAckForUs]
+          messages <- getSentMessages
+          forM_ missing $ \idx -> do
+            case messages IMap.!? idx of
+              -- Here we decide to just log and continue even if we are not able to
+              -- find the message to resend. The reason is we don't want to bring
+              -- the network down by throwing just because some message is
+              -- missplaced.
+              Nothing -> do
+                traceWith tracer $
+                  ReliabilityFailedToFindMsg
+                    ( show idx
+                        <> ", messages length = "
+                        <> show (IMap.size messages)
+                        <> ", latest message ack: "
+                        <> show knownAckForUs
+                        <> ", acked: "
+                        <> show messageAckForUs
+                    )
+                pure ()
+              Just missingMsg -> do
+                let newAcks' = zipWith (\ack i -> if i == myIndex then idx else ack) knownAcks partyIndexes
+                traceWith tracer (Resending missing messageAcks newAcks' partyIndex)
+                atomically $ resend $ ReliableMsg newAcks' missingMsg
 
   updateSeenMessages SeenMessages{insertSeenMessage} acks party = do
     findPartyIndex me $ \myIndex -> do
-      let messageAckForUs = acks ! myIndex
-      insertSeenMessage party messageAckForUs
+      forM_ (acks !? myIndex) $ \messageAckForUs ->
+        insertSeenMessage party messageAckForUs
 
   deleteSeenMessages SentMessages{getSentMessages, removeSentMessage} SeenMessages{getSeenMessages} = do
     clearedMessages <- do
