@@ -76,8 +76,8 @@ spec = parallel $ do
         propagatedMessages = aliceReceivesMessages messagesToSend
 
         receivedMessagesInOrder messageReceived =
-          let refMessages = Data "node-2" <$> [1..]
-          in  all (`elem` refMessages) (payload <$> messageReceived)
+          let refMessages = Data "node-2" <$> [1 ..]
+           in all (`elem` refMessages) (payload <$> messageReceived)
        in
         receivedMessagesInOrder propagatedMessages
           & counterexample (show propagatedMessages)
@@ -119,39 +119,42 @@ spec = parallel $ do
             fromList . toList <$> readTVarIO sentMessages
        in head . knownMessageIds <$> sentMsgs `shouldBe` fromList [1 .. (length messages)]
 
-    prop "stress test networking layer" $ \(aliceToBobMessages :: [Int]) (bobToAliceMessages :: [Int]) seed ->
-      let
-        (msgReceivedByAlice, msgReceivedByBob, traces) = runSimOrThrow $ do
-          messagesReceivedByBob <- newTVarIO empty
-          messagesReceivedByAlice <- newTVarIO empty
-          emittedTraces <- newTVarIO []
-          randomSeed <- newTVarIO $ mkStdGen seed
-          aliceToBob <- newTQueueIO
-          bobToAlice <- newTQueueIO
-          let
-            -- this is a NetworkComponent that broadcasts authenticated messages
-            -- mediated through a read and a write TQueue but drops 0.2 % of them
-            aliceFailingNetwork = failingNetwork randomSeed alice (bobToAlice, aliceToBob)
-            bobFailingNetwork = failingNetwork randomSeed bob (aliceToBob, bobToAlice)
+    -- this test is quite critical as it demonstrates messages dropped are properly managed and resent to the
+    -- other party whatever the length of queue, and whatever the interleaving of threads
+    modifyMaxSuccess (const 5000) $
+      prop "stress test networking layer" $ \(aliceToBobMessages :: [Int]) (bobToAliceMessages :: [Int]) seed ->
+        let
+          (msgReceivedByAlice, msgReceivedByBob, traces) = runSimOrThrow $ do
+            messagesReceivedByBob <- newTVarIO empty
+            messagesReceivedByAlice <- newTVarIO empty
+            emittedTraces <- newTVarIO []
+            randomSeed <- newTVarIO $ mkStdGen seed
+            aliceToBob <- newTQueueIO
+            bobToAlice <- newTQueueIO
+            let
+              -- this is a NetworkComponent that broadcasts authenticated messages
+              -- mediated through a read and a write TQueue but drops 0.2 % of them
+              aliceFailingNetwork = failingNetwork randomSeed alice (bobToAlice, aliceToBob)
+              bobFailingNetwork = failingNetwork randomSeed bob (aliceToBob, bobToAlice)
 
-            bobReliabilityStack = reliabilityStack bobFailingNetwork emittedTraces "bob" bob [alice]
-            aliceReliabilityStack = reliabilityStack aliceFailingNetwork emittedTraces "alice" alice [bob]
+              bobReliabilityStack = reliabilityStack bobFailingNetwork emittedTraces "bob" bob [alice]
+              aliceReliabilityStack = reliabilityStack aliceFailingNetwork emittedTraces "alice" alice [bob]
 
-            runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice aliceToBobMessages bobToAliceMessages
-            runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob bobToAliceMessages aliceToBobMessages
+              runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice aliceToBobMessages bobToAliceMessages
+              runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob bobToAliceMessages aliceToBobMessages
 
-          race_ runAlice runBob
+            race_ runAlice runBob
 
-          logs <- readTVarIO emittedTraces
-          aliceReceived <- toList <$> readTVarIO messagesReceivedByAlice
-          bobReceived <- toList <$> readTVarIO messagesReceivedByBob
-          pure (aliceReceived, bobReceived, logs)
-       in
-        msgReceivedByBob
-          === aliceToBobMessages
-          & counterexample (unlines $ show <$> reverse traces)
-          & tabulate "Messages from Alice to Bob" ["< " <> show ((length msgReceivedByBob `div` 10 + 1) * 10)]
-          & tabulate "Messages from Bob to Alice" ["< " <> show ((length msgReceivedByAlice `div` 10 + 1) * 10)]
+            logs <- readTVarIO emittedTraces
+            aliceReceived <- toList <$> readTVarIO messagesReceivedByAlice
+            bobReceived <- toList <$> readTVarIO messagesReceivedByBob
+            pure (aliceReceived, bobReceived, logs)
+         in
+          msgReceivedByBob
+            === aliceToBobMessages
+            & counterexample (unlines $ show <$> reverse traces)
+            & tabulate "Messages from Alice to Bob" ["< " <> show ((length msgReceivedByBob `div` 10 + 1) * 10)]
+            & tabulate "Messages from Bob to Alice" ["< " <> show ((length msgReceivedByAlice `div` 10 + 1) * 10)]
 
     it "broadcast updates counter from peers" $ do
       let receivedMsgs = runSimOrThrow $ do
