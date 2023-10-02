@@ -13,17 +13,7 @@ import Hydra.Prelude hiding (Down, State, padLeft)
 import Brick
 import Hydra.Cardano.Api
 
-import Brick.Forms (
-  Form,
-  FormFieldState,
-  checkboxField,
-  editShowableFieldWithValidate,
-  newForm,
-  radioField,
- )
-import qualified Cardano.Api.UTxO as UTxO
 import Data.List (nub, (\\))
-import qualified Data.Map.Strict as Map
 import Graphics.Vty (
   Event (EvKey),
   Key (..),
@@ -32,17 +22,15 @@ import Graphics.Vty (
 import qualified Graphics.Vty as Vty
 import Hydra.API.ClientInput (ClientInput (..))
 import Hydra.API.ServerOutput (ServerOutput (..), TimedServerOutput (..))
-import Hydra.Chain (PostTxError (..))
 import Hydra.Chain.CardanoClient (CardanoClient (..))
 import Hydra.Chain.Direct.State ()
 import Hydra.Client (Client (..), HydraEvent (..))
-import Hydra.Ledger (IsTx (..))
-import Hydra.Ledger.Cardano (mkSimpleTx)
-import Hydra.Snapshot (Snapshot (..))
-import Lens.Micro (Lens', lens)
-import Lens.Micro.Mtl (preuse, (.=), assign, use, (%=), (?=))
-import qualified Prelude
+import Lens.Micro.Mtl ((.=), use, (%=), preuse)
 import Hydra.TUI.Model
+import Hydra.TUI.Forms
+import Lens.Micro ((^.), _Just)
+import qualified Cardano.Api.UTxO as UTxO
+import Brick.Forms (handleFormEvent)
 
 info :: Text -> EventM n State ()
 info = report Info
@@ -70,20 +58,25 @@ clearTransitionNote = transitionNoteL .= Nothing
 setTransitionNote :: Text -> EventM n Connection ()
 setTransitionNote x = transitionNoteL .= Just x
 
---
--- Update
---
 
 
-handleVtyQuitEvents :: Vty.Event -> EventM Name State ()
+handleVtyQuitEvents :: Vty.Event -> EventM Name s ()
 handleVtyQuitEvents = \case
   EvKey (KChar 'c') [MCtrl] -> halt
   EvKey (KChar 'd') [MCtrl] -> halt
   EvKey (KChar 'q') [] -> halt
   _ -> pure ()
 
-handleHydraEventDisconnected :: HydraEvent Tx -> EventM Name State ()
-handleHydraEventDisconnected = \case
+handleGlobalEvents :: BrickEvent Name (HydraEvent Tx) -> EventM Name State ()
+handleGlobalEvents = \case
+  AppEvent _ -> pure ()
+  VtyEvent e -> handleVtyQuitEvents e
+  _ -> pure ()
+
+
+
+handleHydraConnectionEvents :: HydraEvent Tx -> EventM Name State ()
+handleHydraConnectionEvents = \case
   ClientConnected -> do
      connectedStateL .= (Connected $ Connection
        { me = Unidentified
@@ -93,20 +86,43 @@ handleHydraEventDisconnected = \case
        , hydraHeadId = Nothing
        , feedback = mempty
        })
+  ClientDisconnected -> connectedStateL .= Disconnected
   _ -> pure ()
 
-handleBrickEventDisconnected :: BrickEvent w (HydraEvent Tx) -> EventM Name State ()
-handleBrickEventDisconnected = \case
-  AppEvent e -> handleHydraEventDisconnected e
-  VtyEvent e -> handleVtyQuitEvents e
-  _ -> pure ()
+handleAppEventVia :: (e -> EventM n s a) -> a -> BrickEvent w e -> EventM n s a
+handleAppEventVia f x = \case
+  AppEvent e -> f e
+  _ -> pure x
 
-handleVtyLifecycleEvents :: Client Tx IO -> Vty.Event -> EventM Name Connection ()
-handleVtyLifecycleEvents Client{sendInput} = \case
+handleVtyLifecycleEventsIdle :: Client Tx IO -> Vty.Event -> EventM Name Connection ()
+handleVtyLifecycleEventsIdle Client{sendInput} = \case
   EvKey (KChar 'i') [] -> liftIO (sendInput Init) >> setTransitionNote "Initializing"
   EvKey (KChar 'a') [] -> liftIO (sendInput Abort) >> setTransitionNote "Aborting"
   EvKey (KChar 'f') [] -> liftIO (sendInput Fanout) >> setTransitionNote "Fanouting"
   _ -> pure ()
+
+handleVtyLifecycleEventsInitializing :: CardanoClient -> Client Tx IO -> Vty.Event -> EventM Name Connection ()
+handleVtyLifecycleEventsInitializing y x e = do
+  p <- preuse (headStateL . commitPanelL)
+  case p of
+    Nothing -> pure ()
+    Just Nothing -> case e of
+                 EvKey (KChar 'c') [] -> do
+                  utxo <- liftIO $ queryUTxOByAddress y [ourAddress]
+                  zoom headStateL $ do
+                    commitPanelL .= Just (utxoCheckboxField $ UTxO.toMap utxo)
+                  where
+                   ourAddress :: Address ShelleyAddr
+                   ourAddress =
+                     makeShelleyAddress
+                       (networkId y)
+                       (PaymentCredentialByKey . verificationKeyHash $ getVerificationKey $ sk x)
+                       NoStakeAddress
+                 _ -> pure ()
+
+    Just (Just _) -> zoom (headStateL . commitPanelL . _Just) $ do
+      handleFormEvent (VtyEvent e)
+
 
 handleHydraLifecycleEvents :: HydraEvent Tx -> EventM Name Connection ()
 handleHydraLifecycleEvents = \case
@@ -117,7 +133,7 @@ handleHydraLifecycleEvents = \case
       let utxo = mempty
           ps = toList parties
 
-      headStateL .= Initializing{parties = ps, remainingParties = ps, utxo, headId = headId}
+      headStateL .= Initializing{parties = ps, commitPanel = Nothing, remainingParties = ps, utxo, headId = headId}
       clearTransitionNote
   Update TimedServerOutput{time, output = HeadIsAborted{}} -> do
       headStateL .= Idle
@@ -129,28 +145,28 @@ handleHydraLifecycleEvents = \case
   _ -> pure ()
 
 
-handleBrickLifecycleEvents :: Client Tx IO -> BrickEvent w (HydraEvent Tx) -> EventM Name State ()
-handleBrickLifecycleEvents client x = zoom (connectedStateL . connectionL) $ case x of
+handleBrickLifecycleEvents :: CardanoClient -> Client Tx IO -> BrickEvent w (HydraEvent Tx) -> EventM Name State ()
+handleBrickLifecycleEvents cardanoClient client x = zoom (connectedStateL . connectionL) $ case x of
   AppEvent e -> handleHydraLifecycleEvents e
-  VtyEvent e -> handleVtyLifecycleEvents client e
-  _ -> pure ()
-
-handleGlobalEvents :: BrickEvent Name (HydraEvent Tx) -> EventM Name State ()
-handleGlobalEvents = \case
-  AppEvent _ -> pure ()
-  VtyEvent e -> handleVtyQuitEvents e
+  VtyEvent e -> do
+    k <- use headStateL
+    case k of
+      Idle -> handleVtyLifecycleEventsIdle client e
+      Initializing {} -> handleVtyLifecycleEventsInitializing cardanoClient client e
+      _ -> pure ()
   _ -> pure ()
 
 handleEvent ::
-  Client Tx IO ->
   CardanoClient ->
+  Client Tx IO ->
   BrickEvent Name (HydraEvent Tx) ->
   EventM Name State ()
-handleEvent client cardanoClient e = do
+handleEvent cardanoClient client e = do
     handleGlobalEvents e
+    handleAppEventVia handleHydraConnectionEvents () e
     use connectedStateL >>= \case
-      Disconnected -> handleBrickEventDisconnected e
-      Connected c -> handleBrickLifecycleEvents client e
+      Disconnected -> pure ()
+      Connected c -> handleBrickLifecycleEvents cardanoClient client e
 
 {--
   pure x
@@ -499,49 +515,8 @@ scroll direction = do
       let vp = viewportScroll shortFeedbackViewportName
       hScrollPage vp direction
 
---
--- Forms additional widgets
---
 
--- A helper for creating multiple form fields from a UTXO set.
-utxoCheckboxField ::
-  forall s e n.
-  ( s ~ Map.Map TxIn (TxOut CtxUTxO, Bool)
-  , n ~ Name
-  ) =>
-  Map TxIn (TxOut CtxUTxO) ->
-  [s -> FormFieldState s e n]
-utxoCheckboxField u =
-  [ checkboxField
-    (checkboxLens k)
-    ("checkboxField@" <> show k)
-    (UTxO.render (k, v))
-  | (k, v) <- Map.toList u
-  ]
- where
-  checkboxLens :: Ord k => k -> Lens' (Map k (v, Bool)) Bool
-  checkboxLens i =
-    lens
-      (maybe False snd . Map.lookup i)
-      (\s b -> Map.adjust (second (const b)) i s)
-
--- A helper for creating a radio form fields for selecting a UTXO in a given set
-utxoRadioField ::
-  forall s e n.
-  ( s ~ (TxIn, TxOut CtxUTxO)
-  , n ~ Name
-  ) =>
-  Map TxIn (TxOut CtxUTxO) ->
-  [s -> FormFieldState s e n]
-utxoRadioField u =
-  [ radioField
-      id
-      [ (i, show i, UTxO.render i)
-      | i <- Map.toList u
-      ]
-  ]
-
-myAvailableUTxO :: MonadReader AppEnv m => MonadState State m => m (Map TxIn (TxOut CtxUTxO))
+myAvailableUTxO :: NetworkId -> VerificationKey PaymentKey -> Map TxIn (TxOut CtxUTxO)
 myAvailableUTxO = do
   x <- preuse headStateL
   networkId <- askNetworkId

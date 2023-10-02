@@ -14,6 +14,7 @@ import Brick.Forms (Form)
 import Hydra.Chain (HeadId)
 import Hydra.Chain.Direct.State ()
 import Hydra.Client (HydraEvent (..))
+import Hydra.TUI.Forms
 import Hydra.Network (Host (..), NodeId)
 import Hydra.Party (Party (..))
 import Lens.Micro.TH (makeLensesFor)
@@ -35,7 +36,9 @@ data ConnectedState
   = Disconnected
   | Connected { connection :: Connection }
 
-data IdentifiedState = Unidentified | Identified Party
+data IdentifiedState
+  = Unidentified
+  | Identified Party
 
 data Connection = Connection
       { me :: IdentifiedState
@@ -59,6 +62,8 @@ data Severity
   | Error
   deriving (Eq, Show, Generic)
 
+type UTxOCheckboxForm e n = Form (Map TxIn (TxOut CtxUTxO, Bool)) e n
+
 data HeadState
   = Idle
   | Initializing
@@ -66,6 +71,7 @@ data HeadState
       , remainingParties :: [Party]
       , utxo :: UTxO
       , headId :: HeadId
+      , commitPanel :: Maybe (UTxOCheckboxForm (HydraEvent Tx) Name)
       }
   | Open
       { parties :: [Party]
@@ -78,7 +84,6 @@ data HeadState
       }
   | FanoutPossible {headId :: HeadId}
   | Final {utxo :: UTxO}
-  deriving (Eq, Show, Generic)
 
 type Name = Text
 
@@ -111,6 +116,7 @@ makeLensesFor
   , ("parties", "partiesL")
   , ("utxo", "utxoL")
   , ("headId", "headIdL")
+  , ("commitPanel", "commitPanelL")
   ]
   ''HeadState
 

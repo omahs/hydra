@@ -39,7 +39,7 @@ runWithVty buildVty options@Options{hydraNodeHost, cardanoNetworkId, cardanoNode
     App
       { appDraw = draw client cardanoClient
       , appChooseCursor = showFirstCursor
-      , appHandleEvent = handleEvent client cardanoClient
+      , appHandleEvent = handleEvent cardanoClient client
       , appStartEvent = pure ()
       , appAttrMap = Hydra.TUI.Drawing.style
       }

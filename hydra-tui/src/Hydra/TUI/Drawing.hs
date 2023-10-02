@@ -14,13 +14,10 @@ import Hydra.Cardano.Api
 import Hydra.Network (NodeId)
 import Brick.Forms (
   focusedFormInputAttr,
-  invalidFormInputAttr,
-  renderForm,
+  invalidFormInputAttr, renderForm,
  )
 import Brick.Widgets.Border (hBorder, vBorder)
 import Brick.Widgets.Border.Style (ascii)
-import qualified Cardano.Api.UTxO as UTxO
-import qualified Data.Map.Strict as Map
 import Data.Text (chunksOf)
 import qualified Data.Text as Text
 import Data.Time (defaultTimeLocale, formatTime)
@@ -65,7 +62,7 @@ own = attrName "own"
 draw :: Client Tx m -> CardanoClient -> State -> [Widget Name]
 draw Client{sk} CardanoClient{networkId} s = pure $ withBorderStyle ascii $ joinBorders $ vBox
   [ hBox
-    [ hLimit 50 $ vBox
+    [ padLeftRight 1 $ hLimit 50 $ vBox
       [ drawTUIVersion version <+> padLeft (Pad 1) (drawConnectedStatus s)
       , drawPeersIfConnected (s ^. connectedStateL)
       , hBorder
@@ -73,8 +70,12 @@ draw Client{sk} CardanoClient{networkId} s = pure $ withBorderStyle ascii $ join
       , drawMyAddress $ mkVkAddress networkId (getVerificationKey sk)
       ]
     , vBorder
-    , vBox [
+    , padLeftRight 1 $ vBox [
         drawHeadState (s ^. connectedStateL),
+        hBorder,
+        case s ^. connectedStateL of
+          Disconnected -> emptyWidget
+          Connected k -> drawFocusPanel k,
         hBorder,
         hLimit 50 $ padLeftRight 1 $ drawCommandList s
       ]
@@ -92,6 +93,22 @@ drawCommandList s = vBox . fmap txt $ case s ^. connectedStateL of
     Closed{} -> ["[Q]uit"]
     FanoutPossible{} -> ["[F]anout", "[Q]uit"]
     Final{} -> ["[I]nit", "[Q]uit"]
+
+drawFocusPanel :: Connection -> Widget Name
+drawFocusPanel s@(Connection{me, headState}) = case headState of
+  Idle -> emptyWidget
+  Initializing{remainingParties=xs, commitPanel} -> case commitPanel of
+    Nothing -> drawRemainingParties me xs
+    Just x -> renderForm x
+  _ -> emptyWidget
+
+drawTotalCommitted :: UTxO -> Widget n
+drawTotalCommitted utxo = str ("Total committed: " <> toString (renderValue (balance @Tx utxo)))
+
+drawRemainingParties :: IdentifiedState -> [Party] -> Widget n
+drawRemainingParties k xs = str "Waiting for parties to commit:"
+                      <=> (case k of Unidentified ->  drawParties (drawParty mempty) xs
+                                     Identified p -> drawPartiesWithOwnHighlighted p xs)
 
 {--
   pure $
@@ -303,14 +320,12 @@ drawCommandList s = vBox . fmap txt $ case s ^. connectedStateL of
       Nothing ->
         -- Reserves the space and not have this area collapse
         str ""
-
-  drawPartyWithOwnHighlighted :: Party -> Widget n
-  drawPartyWithOwnHighlighted p = drawParty (if s ^? meL == Just (Just p) then own else mempty) p
-
-  drawPartiesWithOwnHighlighted :: [Party] -> Widget n
-  drawPartiesWithOwnHighlighted = drawParties drawPartyWithOwnHighlighted
-
 --}
+
+
+drawPartiesWithOwnHighlighted :: Party -> [Party] -> Widget n
+drawPartiesWithOwnHighlighted k = drawParties (\p -> drawParty (if k == p then own else mempty) p)
+
 
 drawUserFeedbackFull :: UserFeedback -> Widget n
 drawUserFeedbackFull UserFeedback{message, severity, time} =
@@ -391,12 +406,23 @@ drawHeadState = \case
         [ padLeftRight 1 $
             vBox
               [ txt "Head status: "
-                  <+> withAttr infoA (txt $ Prelude.head (words $ show headState))
+                  <+> withAttr infoA (str $ showHeadState headState)
                   <+> drawPending
               , maybeWidget drawHeadId (headState ^? headIdL)
               ]
         , hBorder
           ]
+
+showHeadState :: HeadState -> String
+showHeadState = \case
+  Idle -> "Idle"
+  Initializing {} -> "Initializing"
+  Open {} -> "Open"
+  FanoutPossible _ -> "FanoutPossible"
+  Closed _ _ -> "Closed"
+  Final _ -> "Final"
+
+
 --
 -- Style
 --

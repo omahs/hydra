@@ -68,6 +68,7 @@ library
     Hydra.Client
     Hydra.TUI
     Hydra.TUI.Drawing
+    Hydra.TUI.Forms
     Hydra.TUI.Handlers
     Hydra.TUI.Model
     Hydra.TUI.Options
