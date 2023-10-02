@@ -7,6 +7,7 @@ import Test.Hydra.Prelude
 
 import Control.Concurrent.Class.MonadSTM (
   MonadSTM (readTQueue, readTVarIO, writeTQueue),
+  check,
   modifyTVar',
   newTQueueIO,
   newTVarIO,
@@ -140,10 +141,10 @@ spec = parallel $ do
               bobReliabilityStack = reliabilityStack bobFailingNetwork emittedTraces "bob" bob [alice]
               aliceReliabilityStack = reliabilityStack aliceFailingNetwork emittedTraces "alice" alice [bob]
 
-              runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice aliceToBobMessages bobToAliceMessages
-              runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob bobToAliceMessages aliceToBobMessages
+              runAlice = runPeer aliceReliabilityStack "alice" messagesReceivedByAlice messagesReceivedByBob aliceToBobMessages bobToAliceMessages
+              runBob = runPeer bobReliabilityStack "bob" messagesReceivedByBob messagesReceivedByAlice bobToAliceMessages aliceToBobMessages
 
-            race_ runAlice runBob
+            concurrently_ runAlice runBob
 
             logs <- readTVarIO emittedTraces
             aliceReceived <- toList <$> readTVarIO messagesReceivedByAlice
@@ -176,14 +177,14 @@ spec = parallel $ do
 
       receivedMsgs `shouldBe` [ReliableMsg (fromList [1, 1]) (Data "node-1" msg)]
  where
-  runPeer reliability partyName receivedMessageContainer messagesToSend expectedMessages =
+  runPeer reliability partyName receivedMessageContainer sentMessageContainer messagesToSend expectedMessages =
     reliability (capturePayload receivedMessageContainer) $ \Network{broadcast} -> do
       forM_ messagesToSend $ \m -> do
         broadcast (Data partyName m)
-        threadDelay 1
+        threadDelay 0.1
 
-      waitForAllMessages 100 expectedMessages receivedMessageContainer
-      threadDelay 10
+      waitForAllMessages expectedMessages receivedMessageContainer
+      waitForAllMessages messagesToSend sentMessageContainer
 
   reliabilityStack underlyingNetwork tracesContainer nodeId party peers =
     withHeartbeat nodeId noop $
@@ -241,15 +242,10 @@ capturePayload receivedMessages message = case payload message of
     atomically $ modifyTVar' receivedMessages (`snoc` msg)
   _ -> pure ()
 
-waitForAllMessages :: (MonadSTM m, MonadDelay m) => Int -> [msg] -> TVar m (Vector msg) -> m ()
-waitForAllMessages n expectedMessages capturedMessages = do
-  if n == 0
-    then pure ()
-    else do
-      msgs <- readTVarIO capturedMessages
-      if length msgs == length expectedMessages
-        then pure ()
-        else threadDelay 1 >> waitForAllMessages (n - 1) expectedMessages capturedMessages
+waitForAllMessages :: MonadSTM m => [msg] -> TVar m (Vector msg) -> m ()
+waitForAllMessages expectedMessages capturedMessages = atomically $ do
+  msgs <- readTVar capturedMessages
+  check $ length msgs == length expectedMessages
 
 captureTraces ::
   MonadSTM m =>
