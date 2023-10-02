@@ -107,7 +107,7 @@ data ReliabilityLog
   | Received {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
   | Ignored {acknowledged :: Vector Int, localCounter :: Vector Int, partyIndex :: Int}
   | ClearedMessageQueue {messageQueueLength :: Int, deletedMessage :: Int}
-  | ReliabilityFailedToFindMsg { failedToFindMessage :: String }
+  | ReliabilityFailedToFindMsg {failedToFindMessage :: String}
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -209,15 +209,15 @@ withReliability tracer me otherParties withRawNetwork callback action = do
             --
             -- Pings are observed only for the information it provides about the
             -- peer's view of our index
-            if isPing msg
-              then return (isPing msg, knownAcks')
-              else
-                if messageAckForParty == knownAckForParty + 1
-                  then do
+            if
+                | isPing msg ->
+                    return (isPing msg, knownAcks')
+                | messageAckForParty == knownAckForParty + 1 -> do
                     let newAcks = incAckForParty knownAcks' partyIndex
                     void $ updateAckCounter newAcks
                     return (True, newAcks)
-                  else return (isPing msg, knownAcks')
+                | otherwise ->
+                    return (isPing msg, knownAcks')
 
           if shouldCallback
             then do
@@ -225,13 +225,6 @@ withReliability tracer me otherParties withRawNetwork callback action = do
               traceWith tracer (Received acks knownAcks partyIndex)
             else traceWith tracer (Ignored acks knownAcks partyIndex)
 
-          -- NOTE: We only check whether or not our peer is lagging behind to
-          -- resend messages if the peer is quiescent, ie. it did not make any
-          -- progress since the last message we got from it ; or if it is sending
-          -- us "old" messages. This could happen if it is also resending
-          -- messages, but then we might detect later it's not actually lagging
-          -- and therefore we won't resend
-          -- when (messageAckForParty <= knownAckForParty) $
           resendMessagesIfLagging resend partyIndex sentMessages knownAcks acks
 
           -- Update last message index sent by us and seen by some party
