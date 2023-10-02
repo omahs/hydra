@@ -225,7 +225,8 @@ withReliability tracer me otherParties withRawNetwork callback action = do
               traceWith tracer (Received acks knownAcks partyIndex)
             else traceWith tracer (Ignored acks knownAcks partyIndex)
 
-          resendMessagesIfLagging resend partyIndex sentMessages knownAcks acks
+          when (isPing msg) $
+            resendMessagesIfLagging resend partyIndex sentMessages knownAcks acks
 
           -- Update last message index sent by us and seen by some party
           updateSeenMessages seenMessages acks party
