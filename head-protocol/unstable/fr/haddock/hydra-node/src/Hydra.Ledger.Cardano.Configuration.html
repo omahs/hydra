@@ -1,0 +1,248 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Ledger.Cardano.Configuration</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html"><span class="hs-identifier">Hydra.Ledger.Cardano.Configuration</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><span class="hs-identifier">Ledger.Globals</span></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>  </span><span class="annot"><span class="hs-identifier">Ledger.LedgerEnv</span></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.BaseTypes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Globals</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">boundRational</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mkActiveSlotCoeff</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.BaseTypes</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Core</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PParams</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Shelley.API</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">computeRandomnessStabilisationWindow</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">computeStabilityWindow</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Shelley.API.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Slotting.EpochInfo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fixedEpochInfo</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Slotting.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mkSlotLength</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Json</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Json</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- * Helpers</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span id="local-6989586621680089289"><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#readJsonFileThrow"><span class="hs-identifier hs-type">readJsonFileThrow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Json.Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Json.Parser</span></span><span> </span><span class="annot"><a href="#local-6989586621680089289"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">FilePath</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680089289"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-25"></span><span id="readJsonFileThrow"><span class="annot"><span class="annottext">readJsonFileThrow :: forall a. (Value -&gt; Parser a) -&gt; FilePath -&gt; IO a
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#readJsonFileThrow"><span class="hs-identifier hs-var hs-var">readJsonFileThrow</span></a></span></span><span> </span><span id="local-6989586621680089182"><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621680089182"><span class="hs-identifier hs-var">parser</span></a></span></span><span> </span><span id="local-6989586621680089181"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621680089181"><span class="hs-identifier hs-var">filepath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621680089180"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621680089180"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; FilePath -&gt; IO (Either FilePath a)
+</span><span class="hs-identifier hs-var">Json.eitherDecodeFileStrict</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621680089181"><span class="hs-identifier hs-var">filepath</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">either</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; FilePath -&gt; m a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fail</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; Parser b) -&gt; a -&gt; Either FilePath b
+</span><span class="hs-identifier hs-var">Json.parseEither</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser a
+</span><a href="#local-6989586621680089182"><span class="hs-identifier hs-var">parser</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621680089180"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Left</span></a></span><span> </span><span id="local-6989586621680089176"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621680089176"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadFail m =&gt; FilePath -&gt; m a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fail</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621680089176"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Right</span></a></span><span> </span><span id="local-6989586621680089175"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680089175"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680089175"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- * Globals</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="GlobalsTranslationException"><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#GlobalsTranslationException"><span class="hs-identifier hs-var">GlobalsTranslationException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GlobalsTranslationException"><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#GlobalsTranslationException"><span class="hs-identifier hs-var">GlobalsTranslationException</span></a></span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680089170"><span id="local-6989586621680089172"><span class="annot"><span class="annottext">GlobalsTranslationException -&gt; GlobalsTranslationException -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: GlobalsTranslationException -&gt; GlobalsTranslationException -&gt; Bool
+$c/= :: GlobalsTranslationException -&gt; GlobalsTranslationException -&gt; Bool
+== :: GlobalsTranslationException -&gt; GlobalsTranslationException -&gt; Bool
+$c== :: GlobalsTranslationException -&gt; GlobalsTranslationException -&gt; Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089163"><span id="local-6989586621680089165"><span id="local-6989586621680089167"><span class="annot"><span class="annottext">Int -&gt; GlobalsTranslationException -&gt; ShowS
+[GlobalsTranslationException] -&gt; ShowS
+GlobalsTranslationException -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [GlobalsTranslationException] -&gt; ShowS
+$cshowList :: [GlobalsTranslationException] -&gt; ShowS
+show :: GlobalsTranslationException -&gt; FilePath
+$cshow :: GlobalsTranslationException -&gt; FilePath
+showsPrec :: Int -&gt; GlobalsTranslationException -&gt; ShowS
+$cshowsPrec :: Int -&gt; GlobalsTranslationException -&gt; ShowS
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680089152"><span id="local-6989586621680089154"><span id="local-6989586621680089156"><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Exception</span></a></span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#GlobalsTranslationException"><span class="hs-identifier hs-type">GlobalsTranslationException</span></a></span></span></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Create new L2 ledger 'Globals' from 'GenesisParameters'.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Throws at least 'GlobalsTranslationException'</span><span>
+</span><span id="line-40"></span><span id="local-6989586621680089267"><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#newGlobals"><span class="hs-identifier hs-type">newGlobals</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadThrow</span></span><span> </span><span class="annot"><a href="#local-6989586621680089267"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GenesisParameters</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShelleyEra</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680089267"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Globals</span></span></span><span>
+</span><span id="line-41"></span><span id="newGlobals"><span class="annot"><span class="annottext">newGlobals :: forall (m :: * -&gt; *).
+MonadThrow m =&gt;
+GenesisParameters ShelleyEra -&gt; m Globals
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#newGlobals"><span class="hs-identifier hs-var hs-var">newGlobals</span></a></span></span><span> </span><span id="local-6989586621680089123"><span class="annot"><span class="annottext">GenesisParameters ShelleyEra
+</span><a href="#local-6989586621680089123"><span class="hs-identifier hs-var">genesisParameters</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PositiveUnitInterval -&gt; ActiveSlotCoeff
+</span><span class="hs-identifier hs-var">mkActiveSlotCoeff</span></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall r. BoundedRational r =&gt; Rational -&gt; Maybe r
+</span><span class="hs-identifier hs-var">boundRational</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621680089121"><span class="hs-identifier hs-var">protocolParamActiveSlotsCoefficient</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="annottext">Maybe ActiveSlotCoeff
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) e a. (MonadThrow m, Exception e) =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">GlobalsTranslationException
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#GlobalsTranslationException"><span class="hs-identifier hs-var">GlobalsTranslationException</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621680089119"><span class="annot"><span class="annottext">ActiveSlotCoeff
+</span><a href="#local-6989586621680089119"><span class="hs-identifier hs-var">slotCoeff</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680089118"><span class="annot"><span class="annottext">k :: Word64
+</span><a href="#local-6989586621680089118"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680089117"><span class="hs-identifier hs-var">protocolParamSecurity</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Globals</span></span><span>
+</span><span id="line-48"></span><span>          </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">activeSlotCoeff :: ActiveSlotCoeff
+</span><span class="hs-identifier hs-var">activeSlotCoeff</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ActiveSlotCoeff
+</span><a href="#local-6989586621680089119"><span class="hs-identifier hs-var">slotCoeff</span></a></span><span>
+</span><span id="line-49"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EpochInfo (Either Text)
+epochInfo :: EpochInfo (Either Text)
+epochInfo :: EpochInfo (Either Text)
+</span><span class="hs-identifier hs-var hs-var">epochInfo</span></span><span>
+</span><span id="line-50"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxKESEvo :: Word64
+</span><span class="hs-identifier hs-var">maxKESEvo</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680089111"><span class="hs-identifier hs-var">protocolParamMaxKESEvolutions</span></a></span><span>
+</span><span id="line-51"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxLovelaceSupply :: Word64
+</span><span class="hs-identifier hs-var">maxLovelaceSupply</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Lovelace
+</span><a href="#local-6989586621680089109"><span class="hs-identifier hs-var">protocolParamMaxLovelaceSupply</span></a></span><span>
+</span><span id="line-52"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Version
+maxMajorPV :: Version
+maxMajorPV :: Version
+</span><span class="hs-identifier hs-var hs-var">maxMajorPV</span></span><span>
+</span><span id="line-53"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">networkId :: Network
+</span><span class="hs-identifier hs-var">networkId</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NetworkId -&gt; Network
+</span><span class="hs-identifier hs-var">toShelleyNetwork</span></span><span> </span><span class="annot"><span class="annottext">NetworkId
+</span><a href="#local-6989586621680089104"><span class="hs-identifier hs-var">protocolParamNetworkId</span></a></span><span>
+</span><span id="line-54"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quorum :: Word64
+</span><span class="hs-identifier hs-var">quorum</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680089102"><span class="hs-identifier hs-var">protocolParamUpdateQuorum</span></a></span><span>
+</span><span id="line-55"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">randomnessStabilisationWindow :: Word64
+</span><span class="hs-identifier hs-var">randomnessStabilisationWindow</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ActiveSlotCoeff -&gt; Word64
+</span><span class="hs-identifier hs-var">computeRandomnessStabilisationWindow</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680089118"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">ActiveSlotCoeff
+</span><a href="#local-6989586621680089119"><span class="hs-identifier hs-var">slotCoeff</span></a></span><span>
+</span><span id="line-56"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">securityParameter :: Word64
+</span><span class="hs-identifier hs-var">securityParameter</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680089118"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-57"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">slotsPerKESPeriod :: Word64
+</span><span class="hs-identifier hs-var">slotsPerKESPeriod</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680089098"><span class="hs-identifier hs-var">protocolParamSlotsPerKESPeriod</span></a></span><span>
+</span><span id="line-58"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stabilityWindow :: Word64
+</span><span class="hs-identifier hs-var">stabilityWindow</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ActiveSlotCoeff -&gt; Word64
+</span><span class="hs-identifier hs-var">computeStabilityWindow</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621680089118"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">ActiveSlotCoeff
+</span><a href="#local-6989586621680089119"><span class="hs-identifier hs-var">slotCoeff</span></a></span><span>
+</span><span id="line-59"></span><span>          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">systemStart :: SystemStart
+</span><span class="hs-identifier hs-var">systemStart</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; SystemStart
+</span><span class="hs-identifier hs-var">SystemStart</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621680089094"><span class="hs-identifier hs-var">protocolParamSystemStart</span></a></span><span>
+</span><span id="line-60"></span><span>          </span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">GenesisParameters</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="local-6989586621680089098"><span class="annot"><span class="annottext">Int
+protocolParamSlotsPerKESPeriod :: forall era. GenesisParameters era -&gt; Int
+protocolParamSlotsPerKESPeriod :: Int
+</span><span class="hs-identifier hs-var hs-var">protocolParamSlotsPerKESPeriod</span></span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089102"><span class="annot"><span class="annottext">Int
+protocolParamUpdateQuorum :: forall era. GenesisParameters era -&gt; Int
+protocolParamUpdateQuorum :: Int
+</span><span class="hs-identifier hs-var hs-var">protocolParamUpdateQuorum</span></span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089109"><span class="annot"><span class="annottext">Lovelace
+protocolParamMaxLovelaceSupply :: forall era. GenesisParameters era -&gt; Lovelace
+protocolParamMaxLovelaceSupply :: Lovelace
+</span><span class="hs-identifier hs-var hs-var">protocolParamMaxLovelaceSupply</span></span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089117"><span class="annot"><span class="annottext">Int
+protocolParamSecurity :: forall era. GenesisParameters era -&gt; Int
+protocolParamSecurity :: Int
+</span><span class="hs-identifier hs-var hs-var">protocolParamSecurity</span></span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089121"><span class="annot"><span class="annottext">Rational
+protocolParamActiveSlotsCoefficient :: forall era. GenesisParameters era -&gt; Rational
+protocolParamActiveSlotsCoefficient :: Rational
+</span><span class="hs-identifier hs-var hs-var">protocolParamActiveSlotsCoefficient</span></span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089094"><span class="annot"><span class="annottext">UTCTime
+protocolParamSystemStart :: forall era. GenesisParameters era -&gt; UTCTime
+protocolParamSystemStart :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">protocolParamSystemStart</span></span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089104"><span class="annot"><span class="annottext">NetworkId
+protocolParamNetworkId :: forall era. GenesisParameters era -&gt; NetworkId
+protocolParamNetworkId :: NetworkId
+</span><span class="hs-identifier hs-var hs-var">protocolParamNetworkId</span></span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089111"><span class="annot"><span class="annottext">Int
+protocolParamMaxKESEvolutions :: forall era. GenesisParameters era -&gt; Int
+protocolParamMaxKESEvolutions :: Int
+</span><span class="hs-identifier hs-var hs-var">protocolParamMaxKESEvolutions</span></span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089084"><span class="annot"><span class="annottext">EpochSize
+protocolParamEpochLength :: forall era. GenesisParameters era -&gt; EpochSize
+protocolParamEpochLength :: EpochSize
+</span><span class="hs-identifier hs-var hs-var">protocolParamEpochLength</span></span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680089082"><span class="annot"><span class="annottext">NominalDiffTime
+protocolParamSlotLength :: forall era. GenesisParameters era -&gt; NominalDiffTime
+protocolParamSlotLength :: NominalDiffTime
+</span><span class="hs-identifier hs-var hs-var">protocolParamSlotLength</span></span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GenesisParameters ShelleyEra
+</span><a href="#local-6989586621680089123"><span class="hs-identifier hs-var">genesisParameters</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-comment">-- NOTE: This is used by the ledger to discard blocks that have a version</span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- beyond a known limit. Or said differently, unused and irrelevant for Hydra.</span><span>
+</span><span id="line-76"></span><span>  </span><span id="local-6989586621680089108"><span class="annot"><span class="annottext">maxMajorPV :: Version
+</span><a href="#local-6989586621680089108"><span class="hs-identifier hs-var hs-var">maxMajorPV</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">minBound</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- NOTE: uses fixed epoch info for our L2 ledger</span><span>
+</span><span id="line-78"></span><span>  </span><span id="local-6989586621680089114"><span class="annot"><span class="annottext">epochInfo :: EpochInfo (Either Text)
+</span><a href="#local-6989586621680089114"><span class="hs-identifier hs-var hs-var">epochInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *).
+Monad m =&gt;
+EpochSize -&gt; SlotLength -&gt; EpochInfo m
+</span><span class="hs-identifier hs-var">fixedEpochInfo</span></span><span> </span><span class="annot"><span class="annottext">EpochSize
+</span><a href="#local-6989586621680089084"><span class="hs-identifier hs-var">protocolParamEpochLength</span></a></span><span> </span><span class="annot"><span class="annottext">SlotLength
+</span><a href="#local-6989586621680089077"><span class="hs-identifier hs-var">slotLength</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621680089077"><span class="annot"><span class="annottext">slotLength :: SlotLength
+</span><a href="#local-6989586621680089077"><span class="hs-identifier hs-var hs-var">slotLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime -&gt; SlotLength
+</span><span class="hs-identifier hs-var">mkSlotLength</span></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><a href="#local-6989586621680089082"><span class="hs-identifier hs-var">protocolParamSlotLength</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- * LedgerEnv</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#protocolParametersFromJson"><span class="hs-identifier hs-type">protocolParametersFromJson</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Json.Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Json.Parser</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ProtocolParameters</span></span><span>
+</span><span id="line-84"></span><span id="protocolParametersFromJson"><span class="annot"><span class="annottext">protocolParametersFromJson :: Value -&gt; Parser ProtocolParameters
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#protocolParametersFromJson"><span class="hs-identifier hs-var hs-var">protocolParametersFromJson</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- | Create a new ledger env from given protocol parameters.</span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#newLedgerEnv"><span class="hs-identifier hs-type">newLedgerEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PParams</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LedgerEra</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.LedgerEnv</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LedgerEra</span></span><span>
+</span><span id="line-88"></span><span id="newLedgerEnv"><span class="annot"><span class="annottext">newLedgerEnv :: PParams LedgerEra -&gt; LedgerEnv LedgerEra
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#newLedgerEnv"><span class="hs-identifier hs-var hs-var">newLedgerEnv</span></a></span></span><span> </span><span id="local-6989586621680089073"><span class="annot"><span class="annottext">PParams LedgerEra
+</span><a href="#local-6989586621680089073"><span class="hs-identifier hs-var">protocolParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Ledger.LedgerEnv</span></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ledgerSlotNo :: SlotNo
+</span><span class="hs-identifier hs-var">Ledger.ledgerSlotNo</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; SlotNo
+</span><span class="hs-identifier hs-var">SlotNo</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- NOTE: This can probably stay at 0 forever. This is used internally by the</span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-comment">-- node's mempool to keep track of transaction seen from peers. Transactions</span><span>
+</span><span id="line-93"></span><span>      </span><span class="hs-comment">-- in Hydra do not go through the node's mempool and follow a different</span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-comment">-- consensus path so this will remain unused.</span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><span class="annottext">ledgerIx :: TxIx
+</span><span class="hs-identifier hs-var">Ledger.ledgerIx</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">minBound</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- NOTE: This keeps track of the ledger's treasury and reserve which are</span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-comment">-- both unused in Hydra. There might be room for interesting features in the</span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-comment">-- future with these two but for now, we'll consider them empty.</span><span>
+</span><span id="line-99"></span><span>      </span><span class="annot"><span class="annottext">ledgerAccount :: AccountState
+</span><span class="hs-identifier hs-var">Ledger.ledgerAccount</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Coin -&gt; Coin -&gt; AccountState
+</span><span class="hs-identifier hs-var">Ledger.AccountState</span></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">mempty</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Monoid a =&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">mempty</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ledgerPp :: PParams LedgerEra
+</span><span class="hs-identifier hs-var">Ledger.ledgerPp</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PParams LedgerEra
+</span><a href="#local-6989586621680089073"><span class="hs-identifier hs-var">protocolParams</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-102"></span></pre></body></html>

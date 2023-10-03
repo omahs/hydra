@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Data.ContestationPeriod</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">PlutusTx.Prelude</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Plutus</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier">Data.Ratio</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator">(%)</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">nominalDiffTimeToSeconds</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">secondsToNominalDiffTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V1.Time</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DiffMilliSeconds</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromMilliSeconds</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">POSIXTime</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">PlutusTx</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span id="local-6989586621679388287"><span id="local-6989586621679388288"></span></span><span class="hs-keyword">newtype</span><span> </span><span id="ContestationPeriod"><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-var">ContestationPeriod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnsafeContestationPeriod"><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#UnsafeContestationPeriod"><span class="hs-identifier hs-var">UnsafeContestationPeriod</span></a></span></span><span> </span><span class="hs-special">{</span><span id="milliseconds"><span class="annot"><span class="annottext">ContestationPeriod -&gt; DiffMilliSeconds
+</span><a href="Hydra.Data.ContestationPeriod.html#milliseconds"><span class="hs-identifier hs-var hs-var">milliseconds</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffMilliSeconds</span></span><span class="hs-special">}</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall x. Rep ContestationPeriod x -&gt; ContestationPeriod
+forall x. ContestationPeriod -&gt; Rep ContestationPeriod x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cto :: forall x. Rep ContestationPeriod x -&gt; ContestationPeriod
+$cfrom :: forall x. ContestationPeriod -&gt; Rep ContestationPeriod x
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">Generic</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679388275"><span id="local-6989586621679388279"><span class="annot"><span class="annottext">ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c/= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+== :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c== :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679388252"><span id="local-6989586621679388254"><span id="local-6989586621679388257"><span id="local-6989586621679388260"><span id="local-6989586621679388263"><span id="local-6989586621679388266"><span id="local-6989586621679388270"><span class="annot"><span class="annottext">Eq ContestationPeriod
+ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+ContestationPeriod -&gt; ContestationPeriod -&gt; Ordering
+ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+forall a.
+Eq a
+-&gt; (a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+min :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+$cmin :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+max :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+$cmax :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+&gt;= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c&gt;= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+&gt; :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c&gt; :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+&lt;= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c&lt;= :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+&lt; :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c&lt; :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+compare :: ContestationPeriod -&gt; ContestationPeriod -&gt; Ordering
+$ccompare :: ContestationPeriod -&gt; ContestationPeriod -&gt; Ordering
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679388241"><span id="local-6989586621679388243"><span id="local-6989586621679388249"><span class="annot"><span class="annottext">Int -&gt; ContestationPeriod -&gt; ShowS
+[ContestationPeriod] -&gt; ShowS
+ContestationPeriod -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [ContestationPeriod] -&gt; ShowS
+$cshowList :: [ContestationPeriod] -&gt; ShowS
+show :: ContestationPeriod -&gt; String
+$cshow :: ContestationPeriod -&gt; String
+showsPrec :: Int -&gt; ContestationPeriod -&gt; ShowS
+$cshowsPrec :: Int -&gt; ContestationPeriod -&gt; ShowS
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679388213"><span id="local-6989586621679388217"><span id="local-6989586621679388221"><span id="local-6989586621679388225"><span id="local-6989586621679388229"><span id="local-6989586621679388233"><span id="local-6989586621679388238"><span class="annot"><span class="annottext">Integer -&gt; ContestationPeriod
+ContestationPeriod -&gt; ContestationPeriod
+ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+fromInteger :: Integer -&gt; ContestationPeriod
+$cfromInteger :: Integer -&gt; ContestationPeriod
+signum :: ContestationPeriod -&gt; ContestationPeriod
+$csignum :: ContestationPeriod -&gt; ContestationPeriod
+abs :: ContestationPeriod -&gt; ContestationPeriod
+$cabs :: ContestationPeriod -&gt; ContestationPeriod
+negate :: ContestationPeriod -&gt; ContestationPeriod
+$cnegate :: ContestationPeriod -&gt; ContestationPeriod
+* :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+$c* :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+- :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+$c- :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
++ :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+$c+ :: ContestationPeriod -&gt; ContestationPeriod -&gt; ContestationPeriod
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679388207"><span class="annot"><span class="annottext">ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; Eq a
+== :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+$c== :: ContestationPeriod -&gt; ContestationPeriod -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">Plutus.Eq</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679388194"><span id="local-6989586621679388196"><span id="local-6989586621679388200"><span class="hs-identifier">PlutusTx.unstableMakeIsData</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">ContestationPeriod</span></span></span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679388141"><span class="annot"><span class="hs-identifier hs-type">Arbitrary</span></span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>  </span><span id="local-6989586621679388134"><span class="annot"><span class="annottext">arbitrary :: Gen ContestationPeriod
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">arbitrary</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromInteger</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679388129"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679388122"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ContestationPeriod
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DiffMilliSeconds -&gt; ContestationPeriod
+</span><a href="Hydra.Data.ContestationPeriod.html#UnsafeContestationPeriod"><span class="hs-identifier hs-var">UnsafeContestationPeriod</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Num a =&gt; Integer -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromInteger</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679388113"><span id="local-6989586621679388115"><span id="local-6989586621679388117"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679388108"><span class="annot"><span class="annottext">toJSON :: ContestationPeriod -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="annottext">forall a. ToJSON a =&gt; a -&gt; Value
+</span><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">ContestationPeriod -&gt; DiffMilliSeconds
+</span><a href="Hydra.Data.ContestationPeriod.html#milliseconds"><span class="hs-identifier hs-var">milliseconds</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#contestationPeriodFromDiffTime"><span class="hs-identifier hs-type">contestationPeriodFromDiffTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span>
+</span><span id="line-34"></span><span id="contestationPeriodFromDiffTime"><span class="annot"><span class="annottext">contestationPeriodFromDiffTime :: NominalDiffTime -&gt; ContestationPeriod
+</span><a href="Hydra.Data.ContestationPeriod.html#contestationPeriodFromDiffTime"><span class="hs-identifier hs-var hs-var">contestationPeriodFromDiffTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DiffMilliSeconds -&gt; ContestationPeriod
+</span><a href="Hydra.Data.ContestationPeriod.html#UnsafeContestationPeriod"><span class="hs-identifier hs-var">UnsafeContestationPeriod</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">truncate</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Pico
+</span><span class="hs-number">1000</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">NominalDiffTime -&gt; Pico
+</span><span class="hs-identifier hs-var">nominalDiffTimeToSeconds</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#contestationPeriodToDiffTime"><span class="hs-identifier hs-type">contestationPeriodToDiffTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span>
+</span><span id="line-37"></span><span id="contestationPeriodToDiffTime"><span class="annot"><span class="annottext">contestationPeriodToDiffTime :: ContestationPeriod -&gt; NominalDiffTime
+</span><a href="Hydra.Data.ContestationPeriod.html#contestationPeriodToDiffTime"><span class="hs-identifier hs-var hs-var">contestationPeriodToDiffTime</span></a></span></span><span> </span><span id="local-6989586621679388102"><span class="annot"><span class="annottext">ContestationPeriod
+</span><a href="#local-6989586621679388102"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="annottext">Pico -&gt; NominalDiffTime
+</span><span class="hs-identifier hs-var">secondsToNominalDiffTime</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Fractional a =&gt; Rational -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromRational</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ContestationPeriod -&gt; DiffMilliSeconds
+</span><a href="Hydra.Data.ContestationPeriod.html#milliseconds"><span class="hs-identifier hs-var">milliseconds</span></a></span><span> </span><span class="annot"><span class="annottext">ContestationPeriod
+</span><a href="#local-6989586621679388102"><span class="hs-identifier hs-var">cp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; a -&gt; Ratio a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">%</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1000</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Compute the (on-chain) contestation deadline from a given current time and</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- the 'ContestationPeriod'.</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#addContestationPeriod"><span class="hs-identifier hs-type">addContestationPeriod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">POSIXTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">POSIXTime</span></span><span>
+</span><span id="line-43"></span><span id="addContestationPeriod"><span class="annot"><span class="annottext">addContestationPeriod :: POSIXTime -&gt; ContestationPeriod -&gt; POSIXTime
+</span><a href="Hydra.Data.ContestationPeriod.html#addContestationPeriod"><span class="hs-identifier hs-var hs-var">addContestationPeriod</span></a></span></span><span> </span><span id="local-6989586621679388100"><span class="annot"><span class="annottext">POSIXTime
+</span><a href="#local-6989586621679388100"><span class="hs-identifier hs-var">time</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#UnsafeContestationPeriod"><span class="hs-identifier hs-type">UnsafeContestationPeriod</span></a></span><span class="hs-special">{</span><span id="local-6989586621679388099"><span class="annot"><span class="annottext">DiffMilliSeconds
+milliseconds :: DiffMilliSeconds
+milliseconds :: ContestationPeriod -&gt; DiffMilliSeconds
+</span><a href="#local-6989586621679388099"><span class="hs-identifier hs-var hs-var">milliseconds</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">POSIXTime
+</span><a href="#local-6989586621679388100"><span class="hs-identifier hs-var">time</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. AdditiveSemigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">Plutus.+</span></span><span> </span><span class="annot"><span class="annottext">DiffMilliSeconds -&gt; POSIXTime
+</span><span class="hs-identifier hs-var">fromMilliSeconds</span></span><span> </span><span class="annot"><span class="annottext">DiffMilliSeconds
+</span><a href="#local-6989586621679388099"><span class="hs-identifier hs-var">milliseconds</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#addContestationPeriod"><span class="hs-pragma hs-type">addContestationPeriod</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-45"></span></pre></body></html>

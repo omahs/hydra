@@ -1,0 +1,191 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Cluster.Options</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BSC</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AsType</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AsTxId</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TxId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">deserialiseFromRawBytesHex</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cluster.Fixture.html"><span class="hs-identifier">Hydra.Cluster.Fixture</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cluster.Fixture.html#KnownNetwork"><span class="hs-identifier">KnownNetwork</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Options.Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Parser</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">eitherReader</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">flag'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">help</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">long</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">metavar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">strOption</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Options.Applicative.Builder</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">option</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="Options"><span class="annot"><a href="Hydra.Cluster.Options.html#Options"><span class="hs-identifier hs-var">Options</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Options"><span class="annot"><a href="Hydra.Cluster.Options.html#Options"><span class="hs-identifier hs-var">Options</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="knownNetwork"><span class="annot"><span class="annottext">Options -&gt; Maybe KnownNetwork
+</span><a href="Hydra.Cluster.Options.html#knownNetwork"><span class="hs-identifier hs-var hs-var">knownNetwork</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="Hydra.Cluster.Fixture.html#KnownNetwork"><span class="hs-identifier hs-type">KnownNetwork</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="stateDirectory"><span class="annot"><span class="annottext">Options -&gt; Maybe FilePath
+</span><a href="Hydra.Cluster.Options.html#stateDirectory"><span class="hs-identifier hs-var hs-var">stateDirectory</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">FilePath</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="publishHydraScripts"><span class="annot"><span class="annottext">Options -&gt; PublishOrReuse
+</span><a href="Hydra.Cluster.Options.html#publishHydraScripts"><span class="hs-identifier hs-var hs-var">publishHydraScripts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Cluster.Options.html#PublishOrReuse"><span class="hs-identifier hs-type">PublishOrReuse</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679358678"><span id="local-6989586621679358680"><span id="local-6989586621679358690"><span class="annot"><span class="annottext">Int -&gt; Options -&gt; ShowS
+[Options] -&gt; ShowS
+Options -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [Options] -&gt; ShowS
+$cshowList :: [Options] -&gt; ShowS
+show :: Options -&gt; FilePath
+$cshow :: Options -&gt; FilePath
+showsPrec :: Int -&gt; Options -&gt; ShowS
+$cshowsPrec :: Int -&gt; Options -&gt; ShowS
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="PublishOrReuse"><span class="annot"><a href="Hydra.Cluster.Options.html#PublishOrReuse"><span class="hs-identifier hs-var">PublishOrReuse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Publish"><span class="annot"><a href="Hydra.Cluster.Options.html#Publish"><span class="hs-identifier hs-var">Publish</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Reuse"><span class="annot"><a href="Hydra.Cluster.Options.html#Reuse"><span class="hs-identifier hs-var">Reuse</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxId</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679358662"><span id="local-6989586621679358664"><span id="local-6989586621679358669"><span class="annot"><span class="annottext">Int -&gt; PublishOrReuse -&gt; ShowS
+[PublishOrReuse] -&gt; ShowS
+PublishOrReuse -&gt; FilePath
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [PublishOrReuse] -&gt; ShowS
+$cshowList :: [PublishOrReuse] -&gt; ShowS
+show :: PublishOrReuse -&gt; FilePath
+$cshow :: PublishOrReuse -&gt; FilePath
+showsPrec :: Int -&gt; PublishOrReuse -&gt; ShowS
+$cshowsPrec :: Int -&gt; PublishOrReuse -&gt; ShowS
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- TODO: Provide an option to use mithril aggregated snapshots to bootstrap the testnet</span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Hydra.Cluster.Options.html#parseOptions"><span class="hs-identifier hs-type">parseOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="annot"><a href="Hydra.Cluster.Options.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span>
+</span><span id="line-22"></span><span id="parseOptions"><span class="annot"><span class="annottext">parseOptions :: Parser Options
+</span><a href="Hydra.Cluster.Options.html#parseOptions"><span class="hs-identifier hs-var hs-var">parseOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="annottext">Maybe KnownNetwork -&gt; Maybe FilePath -&gt; PublishOrReuse -&gt; Options
+</span><a href="Hydra.Cluster.Options.html#Options"><span class="hs-identifier hs-var">Options</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe KnownNetwork)
+</span><a href="#local-6989586621679358659"><span class="hs-identifier hs-var">parseKnownNetwork</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe FilePath)
+</span><a href="#local-6989586621679358658"><span class="hs-identifier hs-var">parseStateDirectory</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Parser PublishOrReuse
+</span><a href="#local-6989586621679358657"><span class="hs-identifier hs-var">parsePublishHydraScripts</span></a></span><span>
+</span><span id="line-27"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679358659"><span class="annot"><span class="annottext">parseKnownNetwork :: Parser (Maybe KnownNetwork)
+</span><a href="#local-6989586621679358659"><span class="hs-identifier hs-var hs-var">parseKnownNetwork</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">forall a. a -&gt; Mod FlagFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">flag'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">KnownNetwork
+</span><a href="Hydra.Cluster.Fixture.html#Preview"><span class="hs-identifier hs-var">Preview</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;preview&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;The preview testnet&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Mod FlagFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">flag'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">KnownNetwork
+</span><a href="Hydra.Cluster.Fixture.html#Preproduction"><span class="hs-identifier hs-var">Preproduction</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;preprod&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;The pre-production testnet&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Mod FlagFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">flag'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. a -&gt; Maybe a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">KnownNetwork
+</span><a href="Hydra.Cluster.Fixture.html#Mainnet"><span class="hs-identifier hs-var">Mainnet</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;mainnet&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;The mainnet&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. a -&gt; Mod FlagFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">flag'</span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">forall a. Maybe a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-34"></span><span>        </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;devnet&quot;</span></span><span>
+</span><span id="line-35"></span><span>            </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span>
+</span><span id="line-36"></span><span>              </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall a. ToString a =&gt; a -&gt; FilePath
+</span><span class="hs-identifier hs-var">toString</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-37"></span><span>                  </span><span class="annot"><span class="annottext">forall t. IsText t &quot;unlines&quot; =&gt; [t] -&gt; t
+</span><span class="hs-identifier hs-var">unlines</span></span><span>
+</span><span id="line-38"></span><span>                    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Create a local cardano devnet by running a cardano-node, &quot;</span></span><span>
+</span><span id="line-39"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;start a hydra-node and open a single-party head in it. &quot;</span></span><span>
+</span><span id="line-40"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Generates a wallet key pair and commits some into the head using it. &quot;</span></span><span>
+</span><span id="line-41"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;The keys are available on the state-directory. This is useful as a &quot;</span></span><span>
+</span><span id="line-42"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;sandbox for development and testing.&quot;</span></span><span>
+</span><span id="line-43"></span><span>                    </span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>              </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679358658"><span class="annot"><span class="annottext">parseStateDirectory :: Parser (Maybe FilePath)
+</span><a href="#local-6989586621679358658"><span class="hs-identifier hs-var hs-var">parseStateDirectory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f (Maybe a)
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">optional</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall s. IsString s =&gt; Mod OptionFields s -&gt; Parser s
+</span><span class="hs-identifier hs-var">strOption</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;state-directory&quot;</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasMetavar f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">metavar</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;DIR&quot;</span></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span>
+</span><span id="line-52"></span><span>          </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Filepath to the state directory used. If not given a temporary \
+          \one is used. Note that this directory will contain the \
+          \cardano-node state of the network and is potentially quite \
+          \large (&gt; 13GB for testnet)!&quot;</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679358657"><span class="annot"><span class="annottext">parsePublishHydraScripts :: Parser PublishOrReuse
+</span><a href="#local-6989586621679358657"><span class="hs-identifier hs-var hs-var">parsePublishHydraScripts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">forall a. a -&gt; Mod FlagFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">flag'</span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="annottext">PublishOrReuse
+</span><a href="Hydra.Cluster.Options.html#Publish"><span class="hs-identifier hs-var">Publish</span></a></span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;publish-hydra-scripts&quot;</span></span><span>
+</span><span id="line-61"></span><span>          </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Publish hydra scripts before running the scenario.&quot;</span></span><span>
+</span><span id="line-62"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;|&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. ReadM a -&gt; Mod OptionFields a -&gt; Parser a
+</span><span class="hs-identifier hs-var">option</span></span><span>
+</span><span id="line-64"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a. (FilePath -&gt; Either FilePath a) -&gt; ReadM a
+</span><span class="hs-identifier hs-var">eitherReader</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">bimap</span></a></span><span> </span><span class="annot"><span class="annottext">forall b a. (Show a, IsString b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">TxId -&gt; PublishOrReuse
+</span><a href="Hydra.Cluster.Options.html#Reuse"><span class="hs-identifier hs-var">Reuse</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall a.
+SerialiseAsRawBytes a =&gt;
+AsType a -&gt; ByteString -&gt; Either RawBytesHexError a
+</span><span class="hs-identifier hs-var">deserialiseFromRawBytesHex</span></span><span> </span><span class="annot"><span class="annottext">AsType TxId
+</span><span class="hs-identifier hs-var">AsTxId</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; ByteString
+</span><span class="hs-identifier hs-var">BSC.pack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>        </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasName f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">long</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;hydra-scripts-tx-id&quot;</span></span><span>
+</span><span id="line-66"></span><span>            </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. HasMetavar f =&gt; FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">metavar</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;TXID&quot;</span></span><span>
+</span><span id="line-67"></span><span>            </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. FilePath -&gt; Mod f a
+</span><span class="hs-identifier hs-var">help</span></span><span>
+</span><span id="line-68"></span><span>              </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Use the hydra scripts already published in given transaction id.\
+              \See --publish-hydra-scripts or hydra-node publish-scripts&quot;</span></span><span>
+</span><span id="line-70"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span></pre></body></html>

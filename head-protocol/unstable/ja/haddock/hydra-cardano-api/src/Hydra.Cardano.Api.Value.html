@@ -1,0 +1,252 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Cardano.Api.Value</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html"><span class="hs-identifier">Hydra.Cardano.Api.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Api.Ledger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PParams</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Alonzo.TxInfo</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Core</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getMinCoinTxOut</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Mary.Value</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier">Data.Word</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier">Word64</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.CtxUTxO.html"><span class="hs-identifier">Hydra.Cardano.Api.CtxUTxO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.CtxUTxO.html#ToUTxOContext"><span class="hs-identifier">ToUTxOContext</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Hash.html"><span class="hs-identifier">Hydra.Cardano.Api.Hash</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.Hash.html#unsafeScriptHashFromBytes"><span class="hs-identifier">unsafeScriptHashFromBytes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.MultiAssetSupportedInEra.html"><span class="hs-identifier">Hydra.Cardano.Api.MultiAssetSupportedInEra</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.MultiAssetSupportedInEra.html#multiAssetSupportedInEra"><span class="hs-identifier">multiAssetSupportedInEra</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V1.Value</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">flattenValue</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CurrencySymbol</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">adaSymbol</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">adaToken</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromBuiltin</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unCurrencySymbol</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unTokenName</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Plutus</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- * Extras</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Calculate minimum value for a UTxO. Note that cardano-api defines a</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- 'calculateMinimumUTxO' function but it is flawed (see NOTE below) and has an</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- unsatisfactory API because it works across multiple era.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- XXX: Check if this is still true ^^^ and use it if not.</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#minUTxOValue"><span class="hs-identifier hs-type">minUTxOValue</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PParams</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#LedgerEra"><span class="hs-identifier hs-type">LedgerEra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TxOut</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CtxTx</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-27"></span><span id="minUTxOValue"><span class="annot"><span class="annottext">minUTxOValue :: PParams LedgerEra -&gt; TxOut CtxTx Era -&gt; Value
+</span><a href="Hydra.Cardano.Api.Value.html#minUTxOValue"><span class="hs-identifier hs-var hs-var">minUTxOValue</span></a></span></span><span> </span><span id="local-6989586621679224733"><span class="annot"><span class="annottext">PParams LedgerEra
+</span><a href="#local-6989586621679224733"><span class="hs-identifier hs-var">pparams</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TxOut</span></span><span> </span><span id="local-6989586621679224731"><span class="annot"><span class="annottext">AddressInEra Era
+</span><a href="#local-6989586621679224731"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span id="local-6989586621679224730"><span class="annot"><span class="annottext">TxOutValue Era
+</span><a href="#local-6989586621679224730"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679224729"><span class="annot"><span class="annottext">TxOutDatum CtxTx Era
+</span><a href="#local-6989586621679224729"><span class="hs-identifier hs-var">dat</span></a></span></span><span> </span><span id="local-6989586621679224728"><span class="annot"><span class="annottext">ReferenceScript Era
+</span><a href="#local-6989586621679224728"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="annottext">Coin -&gt; Value
+</span><a href="#local-6989586621679224727"><span class="hs-identifier hs-var">fromLedgerLovelace</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">forall era. EraTxOut era =&gt; PParams era -&gt; TxOut era -&gt; Coin
+</span><span class="hs-identifier hs-var">getMinCoinTxOut</span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><span class="annottext">PParams LedgerEra
+</span><a href="#local-6989586621679224733"><span class="hs-identifier hs-var">pparams</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall era ledgerera.
+(ShelleyLedgerEra era ~ ledgerera) =&gt;
+ShelleyBasedEra era -&gt; TxOut CtxUTxO era -&gt; TxOut ledgerera
+</span><span class="hs-identifier hs-var">toShelleyTxOut</span></span><span> </span><span class="annot"><span class="annottext">ShelleyBasedEra Era
+</span><span class="hs-identifier hs-var">ShelleyBasedEraBabbage</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; * -&gt; *) era.
+ToUTxOContext f =&gt;
+f CtxTx era -&gt; f CtxUTxO era
+</span><a href="Hydra.Cardano.Api.CtxUTxO.html#toUTxOContext"><span class="hs-identifier hs-var">toUTxOContext</span></a></span><span> </span><span class="annot"><span class="annottext">TxOut CtxTx Era
+</span><a href="#local-6989586621679224723"><span class="hs-identifier hs-var">out'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679224723"><span class="annot"><span class="annottext">out' :: TxOut CtxTx Era
+</span><a href="#local-6989586621679224723"><span class="hs-identifier hs-var hs-var">out'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">forall ctx era.
+AddressInEra era
+-&gt; TxOutValue era
+-&gt; TxOutDatum ctx era
+-&gt; ReferenceScript era
+-&gt; TxOut ctx era
+</span><span class="hs-identifier hs-var">TxOut</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="annottext">AddressInEra Era
+</span><a href="#local-6989586621679224731"><span class="hs-identifier hs-var">addr</span></a></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="annottext">forall era. MultiAssetSupportedInEra era -&gt; Value -&gt; TxOutValue era
+</span><span class="hs-identifier hs-var">TxOutValue</span></span><span>
+</span><span id="line-37"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall era. HasMultiAsset era =&gt; MultiAssetSupportedInEra era
+</span><a href="Hydra.Cardano.Api.MultiAssetSupportedInEra.html#multiAssetSupportedInEra"><span class="hs-identifier hs-var">multiAssetSupportedInEra</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall era. TxOutValue era -&gt; Value
+</span><span class="hs-identifier hs-var">txOutValueToValue</span></span><span> </span><span class="annot"><span class="annottext">TxOutValue Era
+</span><a href="#local-6989586621679224730"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679224720"><span class="hs-identifier hs-var">defaultHighEnoughValue</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><span class="annottext">TxOutDatum CtxTx Era
+</span><a href="#local-6989586621679224729"><span class="hs-identifier hs-var">dat</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="annottext">ReferenceScript Era
+</span><a href="#local-6989586621679224728"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-comment">-- NOTE: We don't expect the caller to have set any particular value on the</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-comment">-- output, so most likely it is equal to '0' and thus, the minimum calculation</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-comment">-- will be slightly off because once set, the size of the output will change</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">-- and increase the minimum required! So, we evaluate the minimum with an</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-comment">-- already large enough lovelace to acknowledge for the increase in size to</span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-comment">-- come.</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679224720"><span class="annot"><span class="annottext">defaultHighEnoughValue :: Value
+</span><a href="#local-6989586621679224720"><span class="hs-identifier hs-var hs-var">defaultHighEnoughValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">Lovelace -&gt; Value
+</span><span class="hs-identifier hs-var">lovelaceToValue</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Lovelace
+</span><span class="hs-identifier hs-var">Lovelace</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Bounded a =&gt; a
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">maxBound</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Word64</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679224727"><span class="annot"><span class="annottext">fromLedgerLovelace :: Coin -&gt; Value
+</span><a href="#local-6989586621679224727"><span class="hs-identifier hs-var hs-var">fromLedgerLovelace</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">Lovelace -&gt; Value
+</span><span class="hs-identifier hs-var">lovelaceToValue</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Coin -&gt; Lovelace
+</span><span class="hs-identifier hs-var">fromShelleyLovelace</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Count number of assets in a 'Value'.</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#valueSize"><span class="hs-identifier hs-type">valueSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-57"></span><span id="valueSize"><span class="annot"><span class="annottext">valueSize :: Value -&gt; Int
+</span><a href="Hydra.Cardano.Api.Value.html#valueSize"><span class="hs-identifier hs-var hs-var">valueSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; [(AssetId, Quantity)]
+</span><span class="hs-identifier hs-var">valueToList</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | Access minted assets of a transaction, as an ordered association list.</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679224799"><span class="annot"><a href="Hydra.Cardano.Api.Value.html#txMintAssets"><span class="hs-identifier hs-type">txMintAssets</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Tx</span></span><span> </span><span class="annot"><a href="#local-6989586621679224799"><span class="hs-identifier hs-type">era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AssetId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Quantity</span></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-61"></span><span id="txMintAssets"><span class="annot"><span class="annottext">txMintAssets :: forall era. Tx era -&gt; [(AssetId, Quantity)]
+</span><a href="Hydra.Cardano.Api.Value.html#txMintAssets"><span class="hs-identifier hs-var hs-var">txMintAssets</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">forall {build} {era}.
+TxMintValue build era -&gt; [(AssetId, Quantity)]
+</span><a href="#local-6989586621679224706"><span class="hs-identifier hs-var">asList</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall build era. TxBodyContent build era -&gt; TxMintValue build era
+</span><span class="hs-identifier hs-var">txMintValue</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall {era}. TxBody era -&gt; TxBodyContent ViewTx era
+</span><a href="#local-6989586621679224704"><span class="hs-identifier hs-var">getTxBodyContent</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall era. Tx era -&gt; TxBody era
+</span><span class="hs-identifier hs-var">getTxBody</span></span><span>
+</span><span id="line-63"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679224704"><span class="annot"><span class="annottext">getTxBodyContent :: TxBody era -&gt; TxBodyContent ViewTx era
+</span><a href="#local-6989586621679224704"><span class="hs-identifier hs-var hs-var">getTxBodyContent</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TxBody</span></span><span> </span><span id="local-6989586621679224701"><span class="annot"><span class="annottext">TxBodyContent ViewTx era
+</span><a href="#local-6989586621679224701"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TxBodyContent ViewTx era
+</span><a href="#local-6989586621679224701"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679224706"><span class="annot"><span class="annottext">asList :: TxMintValue build era -&gt; [(AssetId, Quantity)]
+</span><a href="#local-6989586621679224706"><span class="hs-identifier hs-var hs-var">asList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">TxMintValue build era
+</span><span class="hs-identifier hs-var">TxMintNone</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">TxMintValue</span></span><span> </span><span class="annot"><span class="annottext">MultiAssetSupportedInEra era
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679224698"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679224698"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="annot"><span class="annottext">BuildTxWith build (Map PolicyId (ScriptWitness WitCtxMint era))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; [(AssetId, Quantity)]
+</span><span class="hs-identifier hs-var">valueToList</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679224698"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- * Type Conversions</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Convert a cardano-ledger 'Value' into a cardano-api 'Value'.</span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#fromLedgerValue"><span class="hs-identifier hs-type">fromLedgerValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.MaryValue</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StandardCrypto</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-73"></span><span id="fromLedgerValue"><span class="annot"><span class="annottext">fromLedgerValue :: MaryValue StandardCrypto -&gt; Value
+</span><a href="Hydra.Cardano.Api.Value.html#fromLedgerValue"><span class="hs-identifier hs-var hs-var">fromLedgerValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="annottext">MaryValue StandardCrypto -&gt; Value
+</span><span class="hs-identifier hs-var">fromMaryValue</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Convert a cardano-ledger 'MultiAsset' into a cardano-api 'Value'. The</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- cardano-api currently does not have an asset-only type. So this conversion</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- will construct a 'Value' with no 'AdaAssetId' entry in it.</span><span>
+</span><span id="line-79"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#fromLedgerMultiAsset"><span class="hs-identifier hs-type">fromLedgerMultiAsset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.MultiAsset</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StandardCrypto</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-80"></span><span id="fromLedgerMultiAsset"><span class="annot"><span class="annottext">fromLedgerMultiAsset :: MultiAsset StandardCrypto -&gt; Value
+</span><a href="Hydra.Cardano.Api.Value.html#fromLedgerMultiAsset"><span class="hs-identifier hs-var hs-var">fromLedgerMultiAsset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>  </span><span class="annot"><span class="annottext">MaryValue StandardCrypto -&gt; Value
+</span><span class="hs-identifier hs-var">fromMaryValue</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall c. Integer -&gt; MultiAsset c -&gt; MaryValue c
+</span><span class="hs-identifier hs-var">Ledger.MaryValue</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Convert a cardano-api 'Value' into a cardano-ledger 'Value'.</span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#toLedgerValue"><span class="hs-identifier hs-type">toLedgerValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.MaryValue</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StandardCrypto</span></span><span>
+</span><span id="line-85"></span><span id="toLedgerValue"><span class="annot"><span class="annottext">toLedgerValue :: Value -&gt; MaryValue StandardCrypto
+</span><a href="Hydra.Cardano.Api.Value.html#toLedgerValue"><span class="hs-identifier hs-var hs-var">toLedgerValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="annottext">Value -&gt; MaryValue StandardCrypto
+</span><span class="hs-identifier hs-var">toMaryValue</span></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Convert a plutus 'Value' into a cardano-api 'Value'.</span><span>
+</span><span id="line-89"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#fromPlutusValue"><span class="hs-identifier hs-type">fromPlutusValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Plutus.Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-90"></span><span id="fromPlutusValue"><span class="annot"><span class="annottext">fromPlutusValue :: Value -&gt; Value
+</span><a href="Hydra.Cardano.Api.Value.html#fromPlutusValue"><span class="hs-identifier hs-var hs-var">fromPlutusValue</span></a></span></span><span> </span><span id="local-6989586621679224690"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679224690"><span class="hs-identifier hs-var">plutusValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="annottext">[(AssetId, Quantity)] -&gt; Value
+</span><span class="hs-identifier hs-var">valueFromList</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="annot"><span class="annottext">(CurrencySymbol, TokenName, Integer) -&gt; (AssetId, Quantity)
+</span><a href="#local-6989586621679224688"><span class="hs-identifier hs-var">convertAsset</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; [(CurrencySymbol, TokenName, Integer)]
+</span><span class="hs-identifier hs-var">flattenValue</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679224690"><span class="hs-identifier hs-var">plutusValue</span></a></span><span>
+</span><span id="line-92"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679224688"><span class="annot"><span class="annottext">convertAsset :: (CurrencySymbol, TokenName, Integer) -&gt; (AssetId, Quantity)
+</span><a href="#local-6989586621679224688"><span class="hs-identifier hs-var hs-var">convertAsset</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679224683"><span class="annot"><span class="annottext">CurrencySymbol
+</span><a href="#local-6989586621679224683"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679224682"><span class="annot"><span class="annottext">TokenName
+</span><a href="#local-6989586621679224682"><span class="hs-identifier hs-var">tk</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679224681"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679224681"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">CurrencySymbol
+</span><a href="#local-6989586621679224683"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">CurrencySymbol
+</span><span class="hs-identifier hs-var">adaSymbol</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">TokenName
+</span><a href="#local-6989586621679224682"><span class="hs-identifier hs-var">tk</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">TokenName
+</span><span class="hs-identifier hs-var">adaToken</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AssetId
+</span><span class="hs-identifier hs-var">AdaAssetId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Quantity
+</span><span class="hs-identifier hs-var">Quantity</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679224681"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PolicyId -&gt; AssetName -&gt; AssetId
+</span><span class="hs-identifier hs-var">AssetId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CurrencySymbol -&gt; PolicyId
+</span><a href="Hydra.Cardano.Api.Value.html#fromPlutusCurrencySymbol"><span class="hs-identifier hs-var">fromPlutusCurrencySymbol</span></a></span><span> </span><span class="annot"><span class="annottext">CurrencySymbol
+</span><a href="#local-6989586621679224683"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TokenName -&gt; AssetName
+</span><a href="#local-6989586621679224675"><span class="hs-identifier hs-var">toAssetName</span></a></span><span> </span><span class="annot"><span class="annottext">TokenName
+</span><a href="#local-6989586621679224682"><span class="hs-identifier hs-var">tk</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Quantity
+</span><span class="hs-identifier hs-var">Quantity</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679224681"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="#local-6989586621679224675"><span class="hs-identifier hs-type">toAssetName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Plutus.TokenName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">AssetName</span></span><span>
+</span><span id="line-98"></span><span>  </span><span id="local-6989586621679224675"><span class="annot"><span class="annottext">toAssetName :: TokenName -&gt; AssetName
+</span><a href="#local-6989586621679224675"><span class="hs-identifier hs-var hs-var">toAssetName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; AssetName
+</span><span class="hs-identifier hs-var">AssetName</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall arep a. FromBuiltin arep a =&gt; arep -&gt; a
+</span><span class="hs-identifier hs-var">fromBuiltin</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">TokenName -&gt; BuiltinByteString
+</span><span class="hs-identifier hs-var">unTokenName</span></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- | Convert a cardano-api 'Value' into a plutus 'Value'</span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#toPlutusValue"><span class="hs-identifier hs-type">toPlutusValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Plutus.Value</span></span><span>
+</span><span id="line-102"></span><span id="toPlutusValue"><span class="annot"><span class="annottext">toPlutusValue :: Value -&gt; Value
+</span><a href="Hydra.Cardano.Api.Value.html#toPlutusValue"><span class="hs-identifier hs-var hs-var">toPlutusValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-103"></span><span>  </span><span class="annot"><span class="annottext">forall c. MaryValue c -&gt; Value
+</span><span class="hs-identifier hs-var">Ledger.transValue</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Value -&gt; MaryValue StandardCrypto
+</span><a href="Hydra.Cardano.Api.Value.html#toLedgerValue"><span class="hs-identifier hs-var">toLedgerValue</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | Convert Cardano api 'PolicyId' to Plutus `CurrencySymbol`.</span><span>
+</span><span id="line-106"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#toPlutusCurrencySymbol"><span class="hs-identifier hs-type">toPlutusCurrencySymbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CurrencySymbol</span></span><span>
+</span><span id="line-107"></span><span id="toPlutusCurrencySymbol"><span class="annot"><span class="annottext">toPlutusCurrencySymbol :: PolicyId -&gt; CurrencySymbol
+</span><a href="Hydra.Cardano.Api.Value.html#toPlutusCurrencySymbol"><span class="hs-identifier hs-var hs-var">toPlutusCurrencySymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall c. PolicyID c -&gt; CurrencySymbol
+</span><span class="hs-identifier hs-var">Ledger.transPolicyID</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyId -&gt; PolicyID StandardCrypto
+</span><a href="Hydra.Cardano.Api.Value.html#toLedgerPolicyID"><span class="hs-identifier hs-var">toLedgerPolicyID</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Convert a plutus 'CurrencySymbol' into a cardano-api 'PolicyId'.</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#fromPlutusCurrencySymbol"><span class="hs-identifier hs-type">fromPlutusCurrencySymbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CurrencySymbol</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span>
+</span><span id="line-111"></span><span id="fromPlutusCurrencySymbol"><span class="annot"><span class="annottext">fromPlutusCurrencySymbol :: CurrencySymbol -&gt; PolicyId
+</span><a href="Hydra.Cardano.Api.Value.html#fromPlutusCurrencySymbol"><span class="hs-identifier hs-var hs-var">fromPlutusCurrencySymbol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ScriptHash -&gt; PolicyId
+</span><span class="hs-identifier hs-var">PolicyId</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt; ByteString -&gt; ScriptHash
+</span><a href="Hydra.Cardano.Api.Hash.html#unsafeScriptHashFromBytes"><span class="hs-identifier hs-var">unsafeScriptHashFromBytes</span></a></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall arep a. FromBuiltin arep a =&gt; arep -&gt; a
+</span><span class="hs-identifier hs-var">fromBuiltin</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/3nfc88hkacrf2rcq1818jl5asksji8kb-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">CurrencySymbol -&gt; BuiltinByteString
+</span><span class="hs-identifier hs-var">unCurrencySymbol</span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- | Convert Cardano api 'PolicyId' to Cardano ledger `PolicyID`.</span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Hydra.Cardano.Api.Value.html#toLedgerPolicyID"><span class="hs-identifier hs-type">toLedgerPolicyID</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.PolicyID</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StandardCrypto</span></span><span>
+</span><span id="line-115"></span><span id="toLedgerPolicyID"><span class="annot"><span class="annottext">toLedgerPolicyID :: PolicyId -&gt; PolicyID StandardCrypto
+</span><a href="Hydra.Cardano.Api.Value.html#toLedgerPolicyID"><span class="hs-identifier hs-var hs-var">toLedgerPolicyID</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span> </span><span id="local-6989586621679224667"><span class="annot"><span class="annottext">ScriptHash
+</span><a href="#local-6989586621679224667"><span class="hs-identifier hs-var">sh</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall c. ScriptHash c -&gt; PolicyID c
+</span><span class="hs-identifier hs-var">Ledger.PolicyID</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ScriptHash -&gt; ScriptHash StandardCrypto
+</span><span class="hs-identifier hs-var">toShelleyScriptHash</span></span><span> </span><span class="annot"><span class="annottext">ScriptHash
+</span><a href="#local-6989586621679224667"><span class="hs-identifier hs-var">sh</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span></pre></body></html>

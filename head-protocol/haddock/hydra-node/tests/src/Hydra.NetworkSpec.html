@@ -1,0 +1,402 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Test the real networking layer</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.NetworkSpec</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Hydra.Prelude</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.CBOR.Read</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">deserialiseFromBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.CBOR.Write</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toLazyByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Class.MonadSTM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newTQueue</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readTQueue</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeTQueue</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Ledger.Simple</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SimpleTx</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Logging</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">showLogsOnFailure</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Network</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Host</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Network</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Network.Message</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Message</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Network.Ouroboros</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">broadcast</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withOuroborosNetwork</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Aeson.GenericSpecs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">roundtripAndGoldenSpecs</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Network.Ports</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">randomUnusedTCPPorts</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="hs-identifier">Property</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><span class="hs-operator">(===)</span></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.Instances.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Hydra.NetworkSpec.html#spec"><span class="hs-identifier hs-type">spec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Spec</span></span><span>
+</span><span id="line-27"></span><span id="spec"><span class="annot"><span class="annottext">spec :: Spec
+</span><a href="Hydra.NetworkSpec.html#spec"><span class="hs-identifier hs-var hs-var">spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679441494"><span class="annot"><span class="annottext">lo :: Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var hs-var">lo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;127.0.0.1&quot;</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; SpecWith a -&gt; SpecWith a
+</span><span class="hs-identifier hs-var">describe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Ouroboros Network&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="annottext">forall a.
+(HasCallStack, Example a) =&gt;
+String -&gt; a -&gt; SpecWith (Arg a)
+</span><span class="hs-identifier hs-var">it</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;broadcasts messages to single connected peer&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-32"></span><span>      </span><span id="local-6989586621679441491"><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441491"><span class="hs-identifier hs-var">received</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; STM m (TQueue m a)
+</span><span class="hs-identifier hs-var">newTQueue</span></span><span>
+</span><span id="line-33"></span><span>      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) msg a.
+(MonadSTM m, MonadCatch m, MonadFork m, MonadTime m, MonadSay m,
+ ToJSON msg) =&gt;
+(Tracer m msg -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">showLogsOnFailure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441489"><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441489"><span class="hs-identifier hs-var">tracer</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(HasCallStack, MonadTimer m, MonadThrow m) =&gt;
+DiffTime -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">failAfter</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><span class="hs-number">30</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-34"></span><span>        </span><span class="hs-special">[</span><span id="local-6989586621679441487"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441487"><span class="hs-identifier hs-var">port1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441486"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441486"><span class="hs-identifier hs-var">port2</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO [Int]
+</span><span class="hs-identifier hs-var">randomUnusedTCPPorts</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">forall msg.
+(ToCBOR msg, FromCBOR msg) =&gt;
+Tracer IO (WithHost (TraceOuroborosNetwork msg))
+-&gt; Host
+-&gt; [Host]
+-&gt; NetworkCallback msg IO
+-&gt; (Network IO msg -&gt; IO ())
+-&gt; IO ()
+</span><span class="hs-identifier hs-var">withOuroborosNetwork</span></span><span> </span><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441489"><span class="hs-identifier hs-var">tracer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441487"><span class="hs-identifier hs-var">port1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441486"><span class="hs-identifier hs-var">port2</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. a -&gt; b -&gt; a
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">const</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441482"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441482"><span class="hs-identifier hs-var">hn1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-36"></span><span>          </span><span class="annot"><span class="annottext">forall msg.
+(ToCBOR msg, FromCBOR msg) =&gt;
+Tracer IO (WithHost (TraceOuroborosNetwork msg))
+-&gt; Host
+-&gt; [Host]
+-&gt; NetworkCallback msg IO
+-&gt; (Network IO msg -&gt; IO ())
+-&gt; IO ()
+</span><span class="hs-identifier hs-var">withOuroborosNetwork</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441489"><span class="hs-identifier hs-var">tracer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441486"><span class="hs-identifier hs-var">port2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441487"><span class="hs-identifier hs-var">port1</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; a -&gt; STM m ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441491"><span class="hs-identifier hs-var">received</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Network IO Integer
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-37"></span><span>            </span><span class="annot"><span class="annottext">forall b. Network IO Integer -&gt; Integer -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodeBroadcastingForever"><span class="hs-identifier hs-var">withNodeBroadcastingForever</span></a></span><span> </span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441482"><span class="hs-identifier hs-var">hn1</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-38"></span><span>              </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; STM m a
+</span><span class="hs-identifier hs-var">readTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441491"><span class="hs-identifier hs-var">received</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. (HasCallStack, Show a, Eq a) =&gt; IO a -&gt; a -&gt; IO ()
+</span><span class="hs-operator hs-var">`shouldReturn`</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">forall a.
+(HasCallStack, Example a) =&gt;
+String -&gt; a -&gt; SpecWith (Arg a)
+</span><span class="hs-identifier hs-var">it</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;broadcasts messages between 3 connected peers&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>      </span><span id="local-6989586621679441478"><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441478"><span class="hs-identifier hs-var">node1received</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; STM m (TQueue m a)
+</span><span class="hs-identifier hs-var">newTQueue</span></span><span>
+</span><span id="line-42"></span><span>      </span><span id="local-6989586621679441477"><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441477"><span class="hs-identifier hs-var">node2received</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; STM m (TQueue m a)
+</span><span class="hs-identifier hs-var">newTQueue</span></span><span>
+</span><span id="line-43"></span><span>      </span><span id="local-6989586621679441476"><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441476"><span class="hs-identifier hs-var">node3received</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; STM m (TQueue m a)
+</span><span class="hs-identifier hs-var">newTQueue</span></span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) msg a.
+(MonadSTM m, MonadCatch m, MonadFork m, MonadTime m, MonadSay m,
+ ToJSON msg) =&gt;
+(Tracer m msg -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">showLogsOnFailure</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441475"><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441475"><span class="hs-identifier hs-var">tracer</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(HasCallStack, MonadTimer m, MonadThrow m) =&gt;
+DiffTime -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">failAfter</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><span class="hs-number">30</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>        </span><span class="hs-special">[</span><span id="local-6989586621679441474"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441474"><span class="hs-identifier hs-var">port1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441473"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441473"><span class="hs-identifier hs-var">port2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441472"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441472"><span class="hs-identifier hs-var">port3</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO [Int]
+</span><span class="hs-identifier hs-var">randomUnusedTCPPorts</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="annottext">forall msg.
+(ToCBOR msg, FromCBOR msg) =&gt;
+Tracer IO (WithHost (TraceOuroborosNetwork msg))
+-&gt; Host
+-&gt; [Host]
+-&gt; NetworkCallback msg IO
+-&gt; (Network IO msg -&gt; IO ())
+-&gt; IO ()
+</span><span class="hs-identifier hs-var">withOuroborosNetwork</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441475"><span class="hs-identifier hs-var">tracer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441474"><span class="hs-identifier hs-var">port1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441473"><span class="hs-identifier hs-var">port2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441472"><span class="hs-identifier hs-var">port3</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; a -&gt; STM m ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441478"><span class="hs-identifier hs-var">node1received</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441471"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441471"><span class="hs-identifier hs-var">hn1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-47"></span><span>          </span><span class="annot"><span class="annottext">forall msg.
+(ToCBOR msg, FromCBOR msg) =&gt;
+Tracer IO (WithHost (TraceOuroborosNetwork msg))
+-&gt; Host
+-&gt; [Host]
+-&gt; NetworkCallback msg IO
+-&gt; (Network IO msg -&gt; IO ())
+-&gt; IO ()
+</span><span class="hs-identifier hs-var">withOuroborosNetwork</span></span><span> </span><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441475"><span class="hs-identifier hs-var">tracer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441473"><span class="hs-identifier hs-var">port2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441474"><span class="hs-identifier hs-var">port1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441472"><span class="hs-identifier hs-var">port3</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; a -&gt; STM m ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441477"><span class="hs-identifier hs-var">node2received</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441470"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441470"><span class="hs-identifier hs-var">hn2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>            </span><span class="annot"><span class="annottext">forall msg.
+(ToCBOR msg, FromCBOR msg) =&gt;
+Tracer IO (WithHost (TraceOuroborosNetwork msg))
+-&gt; Host
+-&gt; [Host]
+-&gt; NetworkCallback msg IO
+-&gt; (Network IO msg -&gt; IO ())
+-&gt; IO ()
+</span><span class="hs-identifier hs-var">withOuroborosNetwork</span></span><span> </span><span class="annot"><span class="annottext">Tracer IO (WithHost (TraceOuroborosNetwork Integer))
+</span><a href="#local-6989586621679441475"><span class="hs-identifier hs-var">tracer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441472"><span class="hs-identifier hs-var">port3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441474"><span class="hs-identifier hs-var">port1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text -&gt; PortNumber -&gt; Host
+</span><span class="hs-identifier hs-var">Host</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679441494"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679441473"><span class="hs-identifier hs-var">port2</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; a -&gt; STM m ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441476"><span class="hs-identifier hs-var">node3received</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679441469"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441469"><span class="hs-identifier hs-var">hn3</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-49"></span><span>              </span><span class="annot"><span class="annottext">forall b. [(Network IO Integer, Integer)] -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-var">withNodesBroadcastingForever</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441471"><span class="hs-identifier hs-var">hn1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441470"><span class="hs-identifier hs-var">hn2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441469"><span class="hs-identifier hs-var">hn3</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-50"></span><span>                </span><span class="annot"><span class="annottext">[(TQueue IO Integer, Integer)] -&gt; IO ()
+</span><a href="Hydra.NetworkSpec.html#assertAllnodesReceivedMessagesFromAllOtherNodes"><span class="hs-identifier hs-var">assertAllnodesReceivedMessagesFromAllOtherNodes</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441478"><span class="hs-identifier hs-var">node1received</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441477"><span class="hs-identifier hs-var">node2received</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441476"><span class="hs-identifier hs-var">node3received</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="annottext">forall a. HasCallStack =&gt; String -&gt; SpecWith a -&gt; SpecWith a
+</span><span class="hs-identifier hs-var">describe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Serialisation&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">forall prop.
+(HasCallStack, Testable prop) =&gt;
+String -&gt; prop -&gt; Spec
+</span><span class="hs-identifier hs-var">prop</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;can roundtrip CBOR encoding/decoding of Hydra Message&quot;</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. (ToCBOR a, FromCBOR a, Eq a, Show a) =&gt; a -&gt; Property
+</span><a href="Hydra.NetworkSpec.html#prop_canRoundtripCBOREncoding"><span class="hs-identifier hs-var">prop_canRoundtripCBOREncoding</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Message</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SimpleTx</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">forall a.
+(Arbitrary a, ToJSON a, FromJSON a, Typeable a) =&gt;
+Proxy a -&gt; Spec
+</span><span class="hs-identifier hs-var">roundtripAndGoldenSpecs</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall {k} (t :: k). Proxy t
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Proxy</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Message</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SimpleTx</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span id="local-6989586621679441747"><span class="annot"><a href="Hydra.NetworkSpec.html#withNodeBroadcastingForever"><span class="hs-identifier hs-type">withNodeBroadcastingForever</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Network</span></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441747"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441747"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-57"></span><span id="withNodeBroadcastingForever"><span class="annot"><span class="annottext">withNodeBroadcastingForever :: forall b. Network IO Integer -&gt; Integer -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodeBroadcastingForever"><span class="hs-identifier hs-var hs-var">withNodeBroadcastingForever</span></a></span></span><span> </span><span id="local-6989586621679441463"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441463"><span class="hs-identifier hs-var">node</span></a></span></span><span> </span><span id="local-6989586621679441462"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441462"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span id="local-6989586621679441461"><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441461"><span class="hs-identifier hs-var">continuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall b. [(Network IO Integer, Integer)] -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-var">withNodesBroadcastingForever</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441463"><span class="hs-identifier hs-var">node</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441462"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441461"><span class="hs-identifier hs-var">continuation</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span id="local-6989586621679441744"><span class="annot"><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-type">withNodesBroadcastingForever</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Network</span></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441744"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441744"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-60"></span><span id="withNodesBroadcastingForever"><span class="annot"><span class="annottext">withNodesBroadcastingForever :: forall b. [(Network IO Integer, Integer)] -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-var hs-var">withNodesBroadcastingForever</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span id="local-6989586621679441452"><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441452"><span class="hs-identifier hs-var">continuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441452"><span class="hs-identifier hs-var">continuation</span></a></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-var">withNodesBroadcastingForever</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679441451"><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441451"><span class="hs-identifier hs-var">node</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441450"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441450"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-glyph hs-type">:</span></a></span><span> </span><span id="local-6989586621679441449"><span class="annot"><span class="annottext">[(Network IO Integer, Integer)]
+</span><a href="#local-6989586621679441449"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679441448"><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441448"><span class="hs-identifier hs-var">continuation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b.
+MonadAsync m =&gt;
+m a -&gt; (Async m a -&gt; m b) -&gt; m b
+</span><span class="hs-identifier hs-var">withAsync</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">forever</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *). MonadDelay m =&gt; DiffTime -&gt; m ()
+</span><span class="hs-identifier hs-var">threadDelay</span></span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><span class="hs-number">0.1</span></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&gt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) msg. Network m msg -&gt; msg -&gt; m ()
+</span><span class="hs-identifier hs-var">broadcast</span></span><span> </span><span class="annot"><span class="annottext">Network IO Integer
+</span><a href="#local-6989586621679441451"><span class="hs-identifier hs-var">node</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441450"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Async IO Any
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall b. [(Network IO Integer, Integer)] -&gt; IO b -&gt; IO b
+</span><a href="Hydra.NetworkSpec.html#withNodesBroadcastingForever"><span class="hs-identifier hs-var">withNodesBroadcastingForever</span></a></span><span> </span><span class="annot"><span class="annottext">[(Network IO Integer, Integer)]
+</span><a href="#local-6989586621679441449"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679441448"><span class="hs-identifier hs-var">continuation</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Hydra.NetworkSpec.html#assertAllnodesReceivedMessagesFromAllOtherNodes"><span class="hs-identifier hs-type">assertAllnodesReceivedMessagesFromAllOtherNodes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TQueue</span></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span id="assertAllnodesReceivedMessagesFromAllOtherNodes"><span class="annot"><span class="annottext">assertAllnodesReceivedMessagesFromAllOtherNodes :: [(TQueue IO Integer, Integer)] -&gt; IO ()
+</span><a href="Hydra.NetworkSpec.html#assertAllnodesReceivedMessagesFromAllOtherNodes"><span class="hs-identifier hs-var hs-var">assertAllnodesReceivedMessagesFromAllOtherNodes</span></a></span></span><span> </span><span id="local-6989586621679441444"><span class="annot"><span class="annottext">[(TQueue IO Integer, Integer)]
+</span><a href="#local-6989586621679441444"><span class="hs-identifier hs-var">messagesFromNodes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Foldable t, Monad m) =&gt;
+t (m a) -&gt; m ()
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">sequence_</span></a></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer -&gt; Integer -&gt; IO ()
+</span><a href="Hydra.NetworkSpec.html#shouldEventuallyReceive"><span class="hs-identifier hs-var">shouldEventuallyReceive</span></a></span><span> </span><span class="annot"><span class="annottext">TQueue Integer
+</span><a href="#local-6989586621679441441"><span class="hs-identifier hs-var">thisQueue</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441440"><span class="hs-identifier hs-var">otherValue</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679441441"><span class="annot"><span class="annottext">TQueue Integer
+</span><a href="#local-6989586621679441441"><span class="hs-identifier hs-var">thisQueue</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441439"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441439"><span class="hs-identifier hs-var">thisValue</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(TQueue IO Integer, Integer)]
+</span><a href="#local-6989586621679441444"><span class="hs-identifier hs-var">messagesFromNodes</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679441438"><span class="annot"><span class="annottext">TQueue Integer
+</span><a href="#local-6989586621679441438"><span class="hs-identifier hs-var">_otherQueue</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679441440"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441440"><span class="hs-identifier hs-var">otherValue</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(TQueue IO Integer, Integer)]
+</span><a href="#local-6989586621679441444"><span class="hs-identifier hs-var">messagesFromNodes</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441440"><span class="hs-identifier hs-var">otherValue</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441439"><span class="hs-identifier hs-var">thisValue</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Hydra.NetworkSpec.html#shouldEventuallyReceive"><span class="hs-identifier hs-type">shouldEventuallyReceive</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TQueue</span></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-bignum-1.3/src"><span class="hs-identifier hs-type">Integer</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Expectation</span></span><span>
+</span><span id="line-76"></span><span id="shouldEventuallyReceive"><span class="annot"><span class="annottext">shouldEventuallyReceive :: TQueue IO Integer -&gt; Integer -&gt; IO ()
+</span><a href="Hydra.NetworkSpec.html#shouldEventuallyReceive"><span class="hs-identifier hs-var hs-var">shouldEventuallyReceive</span></a></span></span><span> </span><span id="local-6989586621679441435"><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441435"><span class="hs-identifier hs-var">queue</span></a></span></span><span> </span><span id="local-6989586621679441434"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441434"><span class="hs-identifier hs-var">expectedValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679441433"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441433"><span class="hs-identifier hs-var">receivedValue</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a.
+(MonadSTM m, HasCallStack) =&gt;
+STM m a -&gt; m a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) a. MonadSTM m =&gt; TQueue m a -&gt; STM m a
+</span><span class="hs-identifier hs-var">readTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441435"><span class="hs-identifier hs-var">queue</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">unless</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441433"><span class="hs-identifier hs-var">receivedValue</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441434"><span class="hs-identifier hs-var">expectedValue</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer -&gt; Integer -&gt; IO ()
+</span><a href="Hydra.NetworkSpec.html#shouldEventuallyReceive"><span class="hs-identifier hs-var">shouldEventuallyReceive</span></a></span><span> </span><span class="annot"><span class="annottext">TQueue IO Integer
+</span><a href="#local-6989586621679441435"><span class="hs-identifier hs-var">queue</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679441434"><span class="hs-identifier hs-var">expectedValue</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679441742"><span class="annot"><a href="Hydra.NetworkSpec.html#prop_canRoundtripCBOREncoding"><span class="hs-identifier hs-type">prop_canRoundtripCBOREncoding</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ToCBOR</span></span><span> </span><span class="annot"><a href="#local-6989586621679441742"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromCBOR</span></span><span> </span><span class="annot"><a href="#local-6989586621679441742"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/ghc-prim-0.8.0/src"><span class="hs-identifier hs-type">Eq</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441742"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679441742"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679441742"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Property</span></span></span><span>
+</span><span id="line-82"></span><span id="prop_canRoundtripCBOREncoding"><span class="annot"><span class="annottext">prop_canRoundtripCBOREncoding :: forall a. (ToCBOR a, FromCBOR a, Eq a, Show a) =&gt; a -&gt; Property
+</span><a href="Hydra.NetworkSpec.html#prop_canRoundtripCBOREncoding"><span class="hs-identifier hs-var hs-var">prop_canRoundtripCBOREncoding</span></a></span></span><span> </span><span id="local-6989586621679441416"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679441416"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679441415"><span class="annot"><span class="annottext">encoded :: ByteString
+</span><a href="#local-6989586621679441415"><span class="hs-identifier hs-var hs-var">encoded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; ByteString
+</span><span class="hs-identifier hs-var">toLazyByteString</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall a. ToCBOR a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">toCBOR</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679441416"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-84"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall a b. (a, b) -&gt; b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">snd</span></a></span><span> </span><span class="annot"><span class="annottext">forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">forall a.
+(forall s. Decoder s a)
+-&gt; ByteString -&gt; Either DeserialiseFailure (ByteString, a)
+</span><span class="hs-identifier hs-var">deserialiseFromBytes</span></span><span> </span><span class="annot"><span class="annottext">forall a s. FromCBOR a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">fromCBOR</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679441415"><span class="hs-identifier hs-var">encoded</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">forall a. (Eq a, Show a) =&gt; a -&gt; a -&gt; Property
+</span><span class="hs-operator hs-var">===</span></span><span> </span><span class="annot"><span class="annottext">forall a b. b -&gt; Either a b
+</span><a href="../file:///nix/store/q054vsi5sfzqlmqglzmmfpa98y36ixhz-ghc-9.2.8-doc/share/doc/ghc/html/libraries/base-4.16.4.0/src"><span class="hs-identifier hs-var">Right</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679441416"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-85"></span></pre></body></html>
