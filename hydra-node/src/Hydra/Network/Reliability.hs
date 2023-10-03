@@ -119,7 +119,7 @@ instance Arbitrary ReliabilityLog where
 
 data SentMessages m msg = SentMessages
   { getSentMessages :: m (IMap.IntMap msg)
-  , insertSentMessage :: Int -> msg -> m ()
+  , insertSentMessage :: Int -> msg -> STM m ()
   , removeSentMessage :: Int -> m (IMap.IntMap msg)
   }
 
@@ -129,8 +129,8 @@ data SeenMessages m = SeenMessages
   }
 
 data AckCounter m = AckCounter
-  { getAckCounter :: m (Vector Int)
-  , updateAckCounter :: Vector Int -> m (Vector Int)
+  { getAckCounter :: STM m (Vector Int)
+  , updateAckCounter :: Vector Int -> STM m (Vector Int)
   }
 
 -- | Middleware function to handle message counters tracking and resending logic.
@@ -171,7 +171,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
         { broadcast = \msg ->
             case msg of
               Data{} -> do
-                ackCounter' <- do
+                ackCounter' <- atomically $ do
                   acks <- getAckCounter
                   let newAcks = incAckForParty acks myIndex
                   forM_ (newAcks !? myIndex) $ \myAcks ->
@@ -181,7 +181,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
                 traceWith tracer (BroadcastCounter myIndex ackCounter')
                 broadcast $ ReliableMsg ackCounter' msg
               Ping{} -> do
-                acks <- getAckCounter
+                acks <- atomically getAckCounter
                 traceWith tracer (BroadcastPing myIndex acks)
                 broadcast $ ReliableMsg acks msg
         }
@@ -190,7 +190,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
     if length acks /= length allParties
       then ignoreMalformedMessages
       else findPartyIndex party $ \partyIndex -> do
-        knownAcks' <- getAckCounter
+        knownAcks' <- atomically getAckCounter
 
         forM_ (findAcksFor knownAcks' acks partyIndex) $ \(messageAckForParty, knownAckForParty) -> do
           (shouldCallback, knownAcks) <- do
@@ -214,7 +214,7 @@ withReliability tracer me otherParties withRawNetwork callback action = do
                     return (isPing msg, knownAcks')
                 | messageAckForParty == knownAckForParty + 1 -> do
                     let newAcks = incAckForParty knownAcks' partyIndex
-                    void $ updateAckCounter newAcks
+                    void $ atomically $ updateAckCounter newAcks
                     return (True, newAcks)
                 | otherwise ->
                     return (isPing msg, knownAcks')
@@ -319,7 +319,7 @@ mkSentMessagesHandle = do
   pure
     SentMessages
       { getSentMessages = readTVarIO sentMessages
-      , insertSentMessage = \i msg -> atomically $ modifyTVar' sentMessages (IMap.insert i msg)
+      , insertSentMessage = \i msg -> modifyTVar' sentMessages (IMap.insert i msg)
       , removeSentMessage = \i -> atomically $ do
           sentMessages' <- readTVar sentMessages
           let updatedMap = IMap.delete i sentMessages'
@@ -341,8 +341,8 @@ mkAckCounterHandle parties = do
   ackCounter <- newTVarIO $ replicate (length parties) 0
   pure
     AckCounter
-      { getAckCounter = readTVarIO ackCounter
-      , updateAckCounter = \newAcks -> atomically $ do
+      { getAckCounter = readTVar ackCounter
+      , updateAckCounter = \newAcks -> do
           writeTVar ackCounter newAcks
-          readTVar ackCounter
+          pure newAcks
       }
